@@ -34,7 +34,7 @@ nothing is implemented yet. Nothing was installed or executed beyond Git inspect
 Suggested sub-steps (one per session):
 
 1. ✅ Python project config (`pyproject.toml`), pinned dependencies, Ruff + mypy config, Makefile skeleton. (ADR-0008; `make check` passes locally. Not yet exercised in CI or Docker.)
-2. ⬜ Pydantic Settings + structured JSON logging.
+2. ✅ Pydantic Settings (`APP_ENV`, `LOG_LEVEL` only; later milestones add their fields) + structured JSON logging with key-based secret redaction. Wiring into the app/uvicorn happens in step 3.
 3. ⬜ FastAPI app factory + `/api/v1/health/live` and `/ready` (readiness stubbed until Mongo/Redis exist) + unit tests.
 4. ⬜ Dockerfile + Docker Compose (MongoDB, Redis) with pinned images.
 5. ⬜ GitHub Actions CI (lint, types, tests).

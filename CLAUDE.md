@@ -61,4 +61,8 @@ make check         # all of the above
 ```
 
 Code lives in `src/docusearch/`, tests in `tests/unit/` (and later `tests/integration/`).
+Config: add fields to `core/settings.py` (`Settings`) and mirror them in `.env.example`; in tests
+build `Settings(_env_file=None)` so a developer's local `.env` never leaks in.
+Logging: `core/logging_setup.py`; pass context via `extra=`, never inside the message string
+(redaction is key-based).
 Stack run targets (`up`, `down`, `logs`, `health`) are added with Docker Compose.
