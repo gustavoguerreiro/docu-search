@@ -1,0 +1,46 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local runtime data (uploaded files, DB/Redis volumes bind-mounted for dev)
+/data/
+/storage/
+*.log
+
+# Terraform (state and plans must never be committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*.auto.tfvars
+terraform.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.bak
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,51 @@
+# CLAUDE.md — DocuSearch
+
+DocuSearch: a REST API to ingest (PDF/DOCX/TXT), asynchronously process, and search documents.
+Portfolio project; quality, security and clarity matter more than feature count.
+Full architecture: `docs/architecture.md`. Plan and status: `docs/roadmap.md`. Decisions: `docs/decisions.md`.
+
+## Current state
+See `docs/roadmap.md`. Verify against the code and tests; never assume a milestone is complete
+because a document says so.
+
+## Stack (pinned versions, Python 3.13)
+FastAPI, Pydantic/Pydantic Settings, PyMongo Async + MongoDB, Redis + RQ, Docker/Compose,
+Prometheus + Grafana, pytest (async), Ruff, mypy, JWT + Argon2id, Terraform (code only),
+Bash scripts, GitHub Actions. Modular monolith: one image, two entrypoints (API, worker).
+
+## Session workflow (mandatory)
+1. Start: check `git status`/branch, read this file and the roadmap, inspect code/tests, summarize
+   state, propose ONE small task.
+2. Before editing: state what/why/files/tests/out-of-scope.
+3. Implement only that task. Never work on multiple milestones in one session.
+4. Run relevant checks (tests, ruff, mypy, compose/terraform validation). Report only checks that
+   actually ran, with real results.
+5. Review `git diff`; update roadmap/docs when behavior changes.
+6. End with: Implemented / Files changed / Verification / Known limitations / Commit suggestion /
+   Next step. Then stop and wait.
+
+## Git rules
+Never commit, push, amend, reset or discard work without explicit permission. Preserve existing
+uncommitted changes. Suggest a conventional commit message instead.
+
+## Hard constraints
+- No `terraform apply|destroy`, no AWS resources, no ECR pushes, no cloud costs, no assumed AWS creds.
+- No paid external APIs in tests. LLM is off by default (`LLM_ENABLED=false`).
+- No secrets in Git, images, logs, fixtures or terminal output. `.env` is git-ignored; use `.env.example`.
+- No frontend, no extra microservices, no Kubernetes, no speculative features.
+
+## Engineering rules
+- Type hints everywhere; UTC-aware datetimes; central config via Pydantic Settings only.
+- Don't block the event loop; manage Mongo/Redis clients via explicit lifecycle hooks.
+- Enforce ownership in DB queries (`{_id, owner_id}`); never trust client-supplied user ids.
+- Uploads are untrusted: server-generated storage keys, no paths in responses, size/type limits.
+- Worker operations are idempotent; search only sees `completed` documents; no cross-collection
+  atomicity assumptions.
+- Metrics: bounded label cardinality (no user/document/request ids). Logs: structured JSON, no
+  secrets or document content.
+- API under `/api/v1`; accurate OpenAPI; consistent error schema.
+- Prefer simple solutions; abstractions only at real boundaries (storage, search backend, LLM).
+- Don't weaken tests, security checks or lint rules to get green.
+
+## Commands
+None yet — they will be listed here (Makefile targets) once Milestone 1 adds them.
