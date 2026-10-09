@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "docusearch"
+version = "0.1.0"
+description = "Document ingestion, indexing and search platform exposed through a REST API."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+# Runtime dependencies are added by the milestone that needs them (see docs/roadmap.md).
+dependencies = [
+    "fastapi==0.143.0",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.0",
+    "pydantic-settings==2.15.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "pytest-cov==7.1.0",
+    "httpx==0.28.1",
+    "ruff==0.16.10",
+    "mypy==2.4.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/docusearch"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: tests that need real services (MongoDB, Redis); excluded from the default unit run",
+]
+
+[tool.coverage.run]
+source = ["src/docusearch"]
+branch = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "S",    # flake8-bandit (security)
+    "ASYNC",  # blocking calls in async code
+    "DTZ",  # naive datetimes (project rule: UTC-aware only)
+    "T20",  # stray print()
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts are the point of tests.
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src", "tests"]
+mypy_path = ["src"]
+warn_unreachable = true

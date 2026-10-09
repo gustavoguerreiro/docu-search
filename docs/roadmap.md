@@ -8,7 +8,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | # | Milestone | Status |
 |---|---|---|
 | 0 | Repository assessment and project plan | ✅ |
-| 1 | Project foundation | ⬜ |
+| 1 | Project foundation | 🟨 |
 | 2 | MongoDB infrastructure and persistence | ⬜ |
 | 3 | Authentication and authorization | ⬜ |
 | 4 | Document upload and storage | ⬜ |
@@ -29,11 +29,11 @@ Repository was empty (no commits). Created `README.md`, `CLAUDE.md`, `.gitignore
 Acceptance: documents exist, are mutually consistent, contain no secrets, and make clear that
 nothing is implemented yet. Nothing was installed or executed beyond Git inspection.
 
-## Milestone 1 — Project foundation (next)
+## Milestone 1 — Project foundation 🟨
 
 Suggested sub-steps (one per session):
 
-1. ⬜ Python project config (`pyproject.toml`), pinned dependencies, Ruff + mypy config, Makefile skeleton.
+1. ✅ Python project config (`pyproject.toml`), pinned dependencies, Ruff + mypy config, Makefile skeleton. (ADR-0008; `make check` passes locally. Not yet exercised in CI or Docker.)
 2. ⬜ Pydantic Settings + structured JSON logging.
 3. ⬜ FastAPI app factory + `/api/v1/health/live` and `/ready` (readiness stubbed until Mongo/Redis exist) + unit tests.
 4. ⬜ Dockerfile + Docker Compose (MongoDB, Redis) with pinned images.

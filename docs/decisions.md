@@ -112,3 +112,23 @@ key is an error only when the feature is enabled. Tests use deterministic double
 
 **Consequences:** Reproducible tests and no hidden costs. Q&A responses may only cite chunks that
 were actually retrieved.
+
+---
+
+## ADR-0008 — uv, pyproject.toml and a lockfile for dependency management
+
+**Status:** Accepted (Milestone 1)
+
+**Context:** Dependencies must be pinned deliberately, including transitive ones, and installs
+must be reproducible locally, in Docker and in CI.
+
+**Decision:** Use `uv` with `pyproject.toml` (PEP 621 + dependency groups) and a committed
+`uv.lock`. Direct dependencies use exact `==` pins; the lock pins the transitive set. The project
+is a `src/` layout package built with `hatchling` (pinned). Commands run with `uv run --locked`
+so a stale lock fails instead of silently re-resolving. Runtime dependencies are added only by the
+milestone that needs them. Ruff (rule set includes security, bugbear, naive-datetime and async
+checks) and mypy `--strict` are configured in `pyproject.toml`.
+
+**Consequences:** One tool and one lockfile; fast, reproducible installs. Contributors need `uv`
+installed. Exact pins mean dependency upgrades are deliberate commits (`uv lock --upgrade-package`).
+Versions were taken from PyPI on 2026-10-09 and resolved successfully on CPython 3.13.13.

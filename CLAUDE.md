@@ -48,4 +48,17 @@ uncommitted changes. Suggest a conventional commit message instead.
 - Don't weaken tests, security checks or lint rules to get green.
 
 ## Commands
-None yet — they will be listed here (Makefile targets) once Milestone 1 adds them.
+Tooling is `uv` (ADR-0008); dependencies are exact-pinned in `pyproject.toml` and locked in `uv.lock`.
+Add a dependency with `uv add <pkg>==<version>` (or `--group dev`) and commit the updated lock.
+
+```
+make install       # uv sync --locked
+make test          # pytest (unit, with coverage); integration tests are marked `integration`
+make lint          # ruff check
+make format        # ruff format   (make format-check to verify only)
+make typecheck     # mypy (strict)
+make check         # all of the above
+```
+
+Code lives in `src/docusearch/`, tests in `tests/unit/` (and later `tests/integration/`).
+Stack run targets (`up`, `down`, `logs`, `health`) are added with Docker Compose.
