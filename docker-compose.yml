@@ -20,6 +20,8 @@ services:
     environment:
       # Pin container-side values that must not depend on a developer's .env.
       APP_ENV: local
+      # The service name resolves only on the compose network; a host-side .env must not override it.
+      MONGODB_URI: mongodb://mongo:27017
     read_only: true
     tmpfs:
       - /tmp

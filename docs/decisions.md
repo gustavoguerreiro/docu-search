@@ -184,3 +184,27 @@ forces LF so the Makefile and Dockerfile work on Windows checkouts.
 validated with actionlint and by running its commands locally and in a clean Linux container, but it
 has not run on GitHub yet; integration tests (MongoDB/Redis) and any coverage threshold are added when
 those tests exist.
+
+---
+
+## ADR-0011 — MongoDB client lifecycle and readiness
+
+**Status:** Accepted (Milestone 2)
+
+**Context:** The API needs one shared MongoDB client with a clear lifetime, and readiness must report a
+dead database quickly without taking the process down.
+
+**Decision:**
+- One `AsyncMongoClient` per process, created in the application lifespan and closed in its `finally`
+  block; it is stored on `app.state` and passed explicitly, with no module-level singleton.
+- Creation does not connect (driver behavior, verified), so the API starts and serves `/live` and
+  `/ready` (503) while MongoDB is down, and recovers without a restart.
+- `tz_aware=True` so datetimes read from MongoDB are UTC-aware, matching the project rule.
+- `serverSelectionTimeoutMS` and `connectTimeoutMS` come from `MONGODB_TIMEOUT_MS` (default 2000), so a
+  readiness probe fails fast; the probe adds its own `asyncio.timeout` for hung connections.
+- `MONGODB_URI` is a `SecretStr`; logs carry the database name and exception *types* only.
+- Operation-level timeouts (`timeoutMS`) are not set globally, because later bulk operations and index
+  builds should not inherit a 2 s limit.
+
+**Consequences:** Running the API on the host without a reachable MongoDB yields `503` on `/ready`
+by design. The integration-test access path to MongoDB is decided in Milestone 2 step 2.

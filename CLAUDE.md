@@ -70,6 +70,9 @@ App: `main.create_app(settings)` builds the FastAPI app (no import-time side eff
 mounted under `/api/v1`. Dependency checks for `/health/ready` are registered in
 `app.state.readiness_checks` (name -> async callable returning bool). Resource lifecycle (DB/Redis
 clients) belongs in `main.lifespan`.
+DB: `db/mongo.py` builds the PyMongo `AsyncMongoClient` (`tz_aware=True`, bounded timeouts); the lifespan
+owns it (`app.state.mongo_client`, `app.state.mongo_db`) and registers the `mongodb` readiness check.
+Never create clients at import time. The URI is a `SecretStr`: log only the db name / error types.
 Config: add fields to `core/settings.py` (`Settings`) and mirror them in `.env.example`; in tests
 build `Settings(_env_file=None)` so a developer's local `.env` never leaks in.
 Logging: `core/logging_setup.py`; pass context via `extra=`, never inside the message string

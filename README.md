@@ -11,12 +11,15 @@ infrastructure-as-code.
 
 ## Current status
 
-**Milestone 1 (project foundation) is complete. There are no product features yet.**
+**Milestone 1 (project foundation) is complete; Milestone 2 (MongoDB persistence) is in progress.
+There are no product features yet.**
 
 What exists and works today:
 
 - FastAPI application with liveness and readiness endpoints under `/api/v1`
 - Configuration from environment variables, structured JSON logging
+- MongoDB client managed by the application lifecycle, with a real readiness check
+  (no collections or indexes yet)
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
 
@@ -54,6 +57,11 @@ curl -i http://127.0.0.1:8000/api/v1/health/live
 curl -i http://127.0.0.1:8000/api/v1/health/ready
 ```
 
+`/live` returns `200`. `/ready` returns **`503` in this mode**, because the API checks MongoDB at
+`MONGODB_URI` (default `mongodb://localhost:27017`) and the Compose MongoDB has no host port. That is
+the intended behavior of a readiness probe; use Option B for a fully ready stack, or point
+`MONGODB_URI` at a MongoDB you run yourself.
+
 Interactive API docs: <http://127.0.0.1:8000/docs>.
 
 ### Option B — run the whole stack with Docker
@@ -88,6 +96,9 @@ for later milestones and is ignored until then.
 |---|---|---|
 | `APP_ENV` | `local` | `local`, `test`, `production` |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (case-insensitive) |
+| `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string; may contain credentials, never logged. Compose sets `mongodb://mongo:27017` for the container |
+| `MONGODB_DB_NAME` | `docusearch` | letters, digits, `_`, `-` (max 38) |
+| `MONGODB_TIMEOUT_MS` | `2000` | 100–60000; bounds connection / server selection so a dead database fails fast |
 
 Logs are one JSON object per line on stdout. Values under keys that look sensitive (password,
 token, secret, authorization, ...) are redacted.
@@ -97,10 +108,11 @@ token, secret, authorization, ...) are redacted.
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/v1/health/live` | Liveness: `200` while the process is up; does not check dependencies |
-| GET | `/api/v1/health/ready` | Readiness: `200` when all registered dependency checks pass, otherwise `503` |
+| GET | `/api/v1/health/ready` | Readiness: `200` when all dependency checks pass, otherwise `503` |
 
-`/ready` currently has no dependency checks registered (MongoDB and Redis are not used yet), so it
-always returns `200` with `{"status":"ok","checks":{}}`.
+`/ready` runs one check today, `mongodb` (a `ping` bounded by `MONGODB_TIMEOUT_MS`):
+`{"status":"ok","checks":{"mongodb":"ok"}}`, or `503` with `"mongodb":"fail"`. The body never contains
+error details. Redis is added to the checks when it is first used (Milestone 5).
 
 ## Developer commands
 
@@ -132,7 +144,7 @@ Run `make help` for the list. Dependencies are pinned exactly in `pyproject.toml
 ## Repository layout
 
 ```
-src/docusearch/    application code (api/, core/, main.py)
+src/docusearch/    application code (api/, core/, db/, main.py)
 tests/             unit tests (integration tests arrive with MongoDB, Milestone 2)
 docs/              architecture, roadmap, architecture decision records
 Dockerfile         one image for the API (and, later, the worker)
@@ -146,7 +158,7 @@ CLAUDE.md          instructions for AI-assisted sessions
 A modular monolith: a FastAPI API plus a separately executed RQ worker, sharing one Docker image.
 MongoDB stores users, document metadata and text chunks; Redis/RQ runs background processing;
 uploaded files go through a storage abstraction (local filesystem first, S3 later); Prometheus and
-Grafana provide observability. Only the API, MongoDB and Redis exist so far.
+Grafana provide observability. Only the API (with a MongoDB client) and the MongoDB and Redis containers exist so far; nothing uses Redis yet.
 
 Details: [`docs/architecture.md`](docs/architecture.md). Decisions: [`docs/decisions.md`](docs/decisions.md).
 

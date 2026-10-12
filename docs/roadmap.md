@@ -9,7 +9,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 |---|---|---|
 | 0 | Repository assessment and project plan | ✅ |
 | 1 | Project foundation | ✅ |
-| 2 | MongoDB infrastructure and persistence | ⬜ |
+| 2 | MongoDB infrastructure and persistence | 🟨 |
 | 3 | Authentication and authorization | ⬜ |
 | 4 | Document upload and storage | ⬜ |
 | 5 | Asynchronous ingestion pipeline | ⬜ |
@@ -44,12 +44,29 @@ Acceptance: app starts locally; health endpoints work; config from env vars; tes
 pass; no real credentials needed; README explains setup. All verified locally (see step 6). Remaining
 caveat: the GitHub Actions workflow has not run on GitHub yet.
 
-## Milestones 2–12
+## Milestone 2 — MongoDB infrastructure and persistence 🟨
+
+Sub-steps (one per session):
+
+1. ✅ Mongo settings, client lifecycle in the app lifespan (`tz_aware=True`, bounded timeouts), real
+   `mongodb` readiness check. ADR-0011. Verified against the Compose MongoDB: ready 200 → 503 when
+   stopped (2 s) → 200 after restart; `/live` unaffected. CI asserts the check is `ok`.
+2. ⬜ Integration-test infrastructure: real MongoDB for tests locally and in CI (decide how tests reach
+   MongoDB; the Compose instance has no host port). First integration tests: client lifecycle, ping.
+3. ⬜ UTC-aware timestamp helper and ObjectId conversion/validation helpers.
+4. ⬜ Collection/index initialization (`users`, `documents`, `chunks`, `refresh_tokens`) with index
+   verification, run at startup.
+5. ⬜ Minimal repository modules for the initial collections.
+
+Acceptance: connections opened and closed correctly; required indexes created and verified;
+integration tests run against a real MongoDB; database operations not hidden behind excessive
+abstractions.
+
+## Milestones 3–12
 
 Scope and acceptance criteria for each are defined in the project instructions provided by the
 author and will be expanded into sub-steps here when the milestone begins. Summary of intent:
 
-- **2** Mongo client lifecycle, repositories, index initialization, UTC timestamps, ObjectId handling, integration tests against real MongoDB.
 - **3** Register/login/refresh/logout/me, JWT, refresh rotation with hashed tokens, ownership policies, cross-user tests.
 - **4** Local storage adapter behind an interface, upload validation (content sniffing, size limit, allowlist), SHA-256, per-user duplicate detection.
 - **5** Redis/RQ worker, extraction, chunking, state machine, idempotency, retries, stale-job reconciliation; upload returns 202.

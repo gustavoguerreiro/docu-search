@@ -8,8 +8,8 @@ from docusearch.core.settings import Settings, get_settings
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("APP_ENV", raising=False)
-    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    for name in ("APP_ENV", "LOG_LEVEL", "MONGODB_URI", "MONGODB_DB_NAME", "MONGODB_TIMEOUT_MS"):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_defaults_need_no_configuration() -> None:
@@ -67,3 +67,41 @@ def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
 
     get_settings.cache_clear()
+
+
+def test_mongodb_defaults_work_without_configuration() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.mongodb_uri.get_secret_value() == "mongodb://localhost:27017"
+    assert settings.mongodb_db_name == "docusearch"
+    assert settings.mongodb_timeout_ms == 2000
+
+
+def test_mongodb_uri_is_hidden_from_repr_and_dumps(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MONGODB_URI", "mongodb://user:hunter2@db:27017")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.mongodb_uri.get_secret_value() == "mongodb://user:hunter2@db:27017"
+    assert "hunter2" not in repr(settings)
+    assert "hunter2" not in str(settings.model_dump())
+    assert "hunter2" not in settings.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("MONGODB_DB_NAME", "bad name"),
+        ("MONGODB_DB_NAME", "a.b"),
+        ("MONGODB_DB_NAME", ""),
+        ("MONGODB_TIMEOUT_MS", "10"),
+        ("MONGODB_TIMEOUT_MS", "600000"),
+    ],
+)
+def test_rejects_invalid_mongodb_settings(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

@@ -68,7 +68,8 @@ jobs:
       - name: Check API health endpoints
         run: |
           curl -fsS http://127.0.0.1:8000/api/v1/health/live
-          curl -fsS http://127.0.0.1:8000/api/v1/health/ready
+          # Fails unless the mongodb readiness check is registered and passing.
+          curl -fsS http://127.0.0.1:8000/api/v1/health/ready | grep -q '"mongodb":"ok"'
 
       - name: Show logs on failure
         if: failure()

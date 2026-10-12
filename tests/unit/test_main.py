@@ -55,3 +55,60 @@ async def test_lifespan_logs_start_and_stop(capsys: pytest.CaptureFixture[str]) 
     assert [e["message"] for e in entries] == ["application started", "application stopped"]
     assert entries[0]["version"] == __version__
     assert entries[0]["app_env"] == "local"
+
+
+class SpyMongoClient:
+    def __init__(self) -> None:
+        self.closed = False
+        self.pings = 0
+        self.admin = self
+
+    async def command(self, name: str) -> dict[str, float]:
+        self.pings += 1
+        return {"ok": 1.0}
+
+    def __getitem__(self, name: str) -> str:
+        return f"db:{name}"
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+@pytest.fixture
+def spy_client(monkeypatch: pytest.MonkeyPatch) -> SpyMongoClient:
+    spy = SpyMongoClient()
+    monkeypatch.setattr("docusearch.main.create_client", lambda settings: spy)
+    return spy
+
+
+async def test_lifespan_owns_the_mongo_client(spy_client: SpyMongoClient) -> None:
+    app = create_app(Settings(_env_file=None, mongodb_db_name="lifecycle_db"))
+
+    async with app.router.lifespan_context(app):
+        assert app.state.mongo_client is spy_client
+        assert app.state.mongo_db == "db:lifecycle_db"
+        assert not spy_client.closed
+
+    assert spy_client.closed
+
+
+async def test_lifespan_closes_the_client_even_if_the_app_fails(spy_client: SpyMongoClient) -> None:
+    app = create_app(Settings(_env_file=None))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        async with app.router.lifespan_context(app):
+            raise RuntimeError("boom")
+
+    assert spy_client.closed
+
+
+async def test_lifespan_registers_a_working_mongodb_readiness_check(
+    spy_client: SpyMongoClient,
+) -> None:
+    app = create_app(Settings(_env_file=None))
+
+    async with app.router.lifespan_context(app):
+        check = app.state.readiness_checks["mongodb"]
+        assert await check() is True
+
+    assert spy_client.pings == 1
