@@ -8,7 +8,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | # | Milestone | Status |
 |---|---|---|
 | 0 | Repository assessment and project plan | ✅ |
-| 1 | Project foundation | 🟨 |
+| 1 | Project foundation | ✅ |
 | 2 | MongoDB infrastructure and persistence | ⬜ |
 | 3 | Authentication and authorization | ⬜ |
 | 4 | Document upload and storage | ⬜ |
@@ -29,7 +29,7 @@ Repository was empty (no commits). Created `README.md`, `CLAUDE.md`, `.gitignore
 Acceptance: documents exist, are mutually consistent, contain no secrets, and make clear that
 nothing is implemented yet. Nothing was installed or executed beyond Git inspection.
 
-## Milestone 1 — Project foundation 🟨
+## Milestone 1 — Project foundation ✅
 
 Suggested sub-steps (one per session):
 
@@ -38,10 +38,11 @@ Suggested sub-steps (one per session):
 3. ✅ FastAPI app factory (`create_app`, run with `uvicorn --factory`) + `/api/v1/health/live` and `/ready` + unit tests. Readiness runs the checks registered on `app.state.readiness_checks`; none are registered until Mongo/Redis exist. uvicorn's own loggers are routed to the JSON formatter once the lifespan starts (its two earliest startup lines stay plain text).
 4. ✅ Dockerfile (multi-stage, non-root, one image for API and later worker) + Docker Compose with `api`, MongoDB 8.0 and Redis 7.4 (pinned, health-checked, named volumes, no host ports for Mongo/Redis). ADR-0009. Verified locally with Docker only; CI build comes in step 5. The worker service is added in Milestone 5.
 5. ✅ GitHub Actions CI (`.github/workflows/ci.yml`): `python` job (ruff, format check, mypy, pytest) and `docker` job (compose validation, image build, stack up with health checks, live/ready calls); `.gitattributes` enforces LF. ADR-0010. **Not yet run on GitHub** — validated with actionlint and by running the same commands locally and in a clean Linux container; the first real run happens when this is pushed.
-6. ⬜ README getting-started verified end to end.
+6. ✅ README getting-started, verified end to end from a fresh `git clone` of the committed repo (Option A: install, check, run + curl; Option B: up, health, logs, down; `.env` step). Tested on Windows 11 with Git Bash only; the CI run on Linux/GitHub is still pending the first push.
 
 Acceptance: app starts locally; health endpoints work; config from env vars; tests/lint/types
-pass; no real credentials needed; README explains setup.
+pass; no real credentials needed; README explains setup. All verified locally (see step 6). Remaining
+caveat: the GitHub Actions workflow has not run on GitHub yet.
 
 ## Milestones 2–12
 
