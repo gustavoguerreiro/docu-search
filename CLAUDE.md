@@ -77,6 +77,10 @@ Never create clients at import time. The URI is a `SecretStr`: log only the db n
 Integration tests: put them in `tests/integration/` (auto-marked `integration`); use the `mongo_client` /
 `mongo_db` / `mongo_settings` fixtures, which give every test its own `docusearch_test_*` database and drop it.
 Never point them at a non-test database. Unreachable MongoDB must fail, not skip.
+Auth primitives: `core/passwords.py` (async Argon2id; never hash on the event loop) and `core/tokens.py`
+(HS256 access tokens; one `InvalidTokenError` for callers). Never log tokens, hashes or the key; never
+add algorithms to `decode`'s list. `JWT_SECRET_KEY` is required in production and random per process
+otherwise. Unit tests in `tests/unit/core/test_tokens.py` are security-relevant: don't loosen them.
 Repositories: `db/repositories/<collection>.py`, one thin class each, built from `app.state.mongo_db`. Every
 document/chunk operation takes `owner_id` and filters on it in the query. Add an operation only when a
 milestone needs it; map unique-index violations to a domain error; no base classes or interfaces.

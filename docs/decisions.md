@@ -294,3 +294,34 @@ query showed that the index from ADR-0013 could not serve a deterministic sort.
 slower for very deep offsets; acceptable for per-user lists. Switching to keyset pagination later only
 changes the repository methods. Services that span collections (delete document + chunks) must tolerate
 a failure between steps.
+
+---
+
+## ADR-0015 — Password hashing and access-token primitives
+
+**Status:** Accepted (Milestone 3)
+
+**Context:** Authentication needs password storage and signed access tokens that fail closed.
+
+**Decision:**
+- **Passwords:** Argon2id via `argon2-cffi` with its defaults (3 iterations, 64 MiB, 4 lanes: RFC 9106
+  low-memory profile). Hashing runs in a dedicated 4-thread pool, never on the event loop, which also
+  caps memory at about 4 x 64 MiB however many logins arrive at once. Passwords above 1024 bytes are
+  refused before hashing (bounding attacker-controlled work). `verify_password` returns `False` for any
+  bad input instead of raising. `needs_rehash` supports upgrading parameters at login later.
+- **Access tokens:** JWT, HS256 only (the settings type is `Literal["HS256"]`, so `none` and asymmetric
+  algorithms are unreachable). Verification pins the algorithm list, requires `exp`, `iat`, `sub`, `iss`,
+  `aud` and `jti`, checks issuer and audience, and requires `sub` to be a valid ObjectId. All failures
+  raise one `InvalidTokenError` carrying no token or library text; `ExpiredTokenError` is a subtype so
+  the server can log the difference. Lifetime defaults to 15 minutes (max 60).
+- **Signing key:** `JWT_SECRET_KEY`, at least 32 characters whenever it is set. If unset outside
+  production, a random key is generated per process; there is intentionally **no public default**,
+  because `APP_ENV` defaults to `local` and a published placeholder would make tokens forgeable on any
+  deployment that forgot to configure it. Production refuses to start without an explicit key, and
+  rejects values beginning with `change-me`.
+- The test suite turns PyJWT's key-length warning into an error.
+
+**Consequences:** Per-process random keys mean local tokens die on restart and differ between
+processes; run a single API process or set a key. HS256 means every verifier holds the signing key; if
+other services must verify tokens, switch to an asymmetric algorithm (a new ADR). There is no
+access-token revocation: tokens are short-lived and `jti` is available if a deny-list is ever needed.

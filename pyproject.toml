@@ -15,6 +15,8 @@ dependencies = [
     "pydantic==2.14.0",
     "pydantic-settings==2.15.0",
     "pymongo==4.18.3",
+    "argon2-cffi==25.1.0",
+    "pyjwt==2.15.1",
 ]
 
 [dependency-groups]
@@ -39,6 +41,8 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# A weak signing key must fail the suite, never just warn.
+filterwarnings = ["error::jwt.warnings.InsecureKeyLengthWarning"]
 markers = [
     "integration: tests that need real services (MongoDB, Redis); excluded from the default unit run",
 ]

@@ -10,7 +10,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | 0 | Repository assessment and project plan | ✅ |
 | 1 | Project foundation | ✅ |
 | 2 | MongoDB infrastructure and persistence | ✅ |
-| 3 | Authentication and authorization | ⬜ |
+| 3 | Authentication and authorization | 🟨 |
 | 4 | Document upload and storage | ⬜ |
 | 5 | Asynchronous ingestion pipeline | ⬜ |
 | 6 | Text search | ⬜ |
@@ -70,12 +70,29 @@ against a real MongoDB (`make test-integration`); repositories are thin classes 
 no interfaces or generic base class. Not verifiable from the development environment: the CI changes made in this
 milestone (`integration` job, `mongodb`/`indexes` readiness assertion) running on GitHub.
 
-## Milestones 3–12
+## Milestone 3 — Authentication and authorization 🟨
+
+Sub-steps (one per session):
+
+1. ✅ Auth primitives, no endpoints: Argon2id hashing off the event loop (`core/passwords.py`), HS256
+   access tokens with strict verification (`core/tokens.py`), JWT settings (`JWT_SECRET_KEY` required
+   in production, random per process otherwise). ADR-0015. Mutation-checked: weakening audience,
+   required-claims, algorithm or subject validation fails the tests.
+2. ⬜ Refresh tokens: opaque random token stored as a SHA-256 hash, rotation with reuse detection
+   (design decision to agree before coding), `REFRESH_TOKEN_TTL_DAYS`.
+3. ⬜ Auth service + `POST /auth/register` and `POST /auth/login`: email normalization, no user
+   enumeration (uniform responses, dummy-hash timing), password policy, consistent error body.
+4. ⬜ `POST /auth/refresh` and `POST /auth/logout` (revocation).
+5. ⬜ Authentication dependency, `GET /auth/me`, ownership policy helper, cross-user tests.
+
+Acceptance: authentication tests pass; invalid, expired, revoked and malformed tokens are rejected;
+cross-user access tests pass; secrets are not logged.
+
+## Milestones 4–12
 
 Scope and acceptance criteria for each are defined in the project instructions provided by the
 author and will be expanded into sub-steps here when the milestone begins. Summary of intent:
 
-- **3** Register/login/refresh/logout/me, JWT, refresh rotation with hashed tokens, ownership policies, cross-user tests.
 - **4** Local storage adapter behind an interface, upload validation (content sniffing, size limit, allowlist), SHA-256, per-user duplicate detection.
 - **5** Redis/RQ worker, extraction, chunking, state machine, idempotency, retries, stale-job reconciliation; upload returns 202.
 - **6** Mongo text search scoped to owner and completed documents, pagination, document endpoints.

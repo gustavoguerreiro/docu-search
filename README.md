@@ -11,8 +11,8 @@ infrastructure-as-code.
 
 ## Current status
 
-**Milestones 1 (foundation) and 2 (MongoDB persistence) are complete. There are no product features
-yet: no HTTP endpoints beyond health checks.**
+**Milestones 1 (foundation) and 2 (MongoDB persistence) are complete; Milestone 3 (authentication) is
+in progress. There are no product features yet: no HTTP endpoints beyond health checks.**
 
 What exists and works today:
 
@@ -22,6 +22,7 @@ What exists and works today:
   readiness checks
 - Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
   tested against a real MongoDB; not yet exposed through the API
+- Authentication primitives (Argon2id password hashing, JWT access tokens); no auth endpoints yet
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
 
@@ -101,6 +102,9 @@ for later milestones and is ignored until then.
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string; may contain credentials, never logged. Compose sets `mongodb://mongo:27017` for the container |
 | `MONGODB_DB_NAME` | `docusearch` | letters, digits, `_`, `-` (max 38) |
 | `MONGODB_TIMEOUT_MS` | `2000` | 100–60000; bounds connection / server selection so a dead database fails fast |
+| `JWT_SECRET_KEY` | random per process | ≥ 32 characters; **required when `APP_ENV=production`**, never committed. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `JWT_ALGORITHM` | `HS256` | only `HS256` is accepted |
+| `ACCESS_TOKEN_TTL_MINUTES` | `15` | 1–60 |
 
 Logs are one JSON object per line on stdout. Values under keys that look sensitive (password,
 token, secret, authorization, ...) are redacted.
