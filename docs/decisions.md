@@ -208,3 +208,27 @@ dead database quickly without taking the process down.
 
 **Consequences:** Running the API on the host without a reachable MongoDB yields `503` on `/ready`
 by design. The integration-test access path to MongoDB is decided in Milestone 2 step 2.
+
+---
+
+## ADR-0012 — Integration tests run against a throwaway MongoDB in a Compose profile
+
+**Status:** Accepted (Milestone 2)
+
+**Context:** Persistence code must be tested against a real MongoDB, locally and in CI, without
+exposing the dev database or sharing its data.
+
+**Decision:**
+- A dedicated `mongo-test` service (same pinned image as dev) in the Compose profile `test`, published on
+  `127.0.0.1:27018` only, with tmpfs storage and no named volume. It is not started by `make up`.
+- `make test-integration` starts it, runs `pytest -m integration`, always removes it and returns pytest's
+  exit code. `make down` also removes it (`--profile "*"`).
+- Tests under `tests/integration/` are marked `integration` automatically; the unit run and CI's `python`
+  job exclude them. Each test gets a uniquely named database (`docusearch_test_<random>`) that is dropped
+  afterwards; the fixture refuses to drop a name without that prefix.
+- An unreachable test database fails the test with instructions rather than skipping it.
+- CI's `integration` job uses the same Compose profile, so the image and health check have one definition.
+
+**Consequences:** Dev data is never touched by tests, and tests are isolated from each other. Running
+them needs Docker. Alternatives considered: publishing the dev Mongo port (shares data, weakens the
+no-host-port rule) and running tests inside a container (slower local loop).

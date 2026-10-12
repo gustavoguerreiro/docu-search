@@ -3,7 +3,8 @@
 # - MongoDB and Redis publish NO host ports; they are reachable only from other services on the
 #   compose network. MongoDB runs without authentication, which is acceptable only because of
 #   that isolation. Do not publish its port without enabling auth first.
-# - Only the API is published, and only on the loopback interface.
+# - Only the API is published, and only on the loopback interface. The one exception is the
+#   `mongo-test` service (profile `test`, ephemeral data), also loopback-only.
 # - Data lives in named volumes. `make down` keeps them; only `docker compose down -v` deletes them.
 
 name: docusearch
@@ -55,6 +56,28 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # Throwaway MongoDB for integration tests (`make test-integration`). Not started by `make up`.
+  # Published on loopback only, on a port different from any dev instance, and with no volume:
+  # data lives in tmpfs and disappears with the container.
+  mongo-test:
+    image: mongo:8.0.32
+    profiles: ["test"]
+    ports:
+      - "127.0.0.1:27018:27017"
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "quit(db.adminCommand('ping').ok === 1 ? 0 : 1)"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7.4.11-bookworm

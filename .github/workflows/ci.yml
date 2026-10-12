@@ -49,6 +49,38 @@ jobs:
       - name: Unit tests
         run: uv run --locked pytest -m "not integration" --cov --cov-report=term-missing
 
+  integration:
+    name: Integration tests (MongoDB)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # Same service definition as `make test-integration`: one source of truth for the image.
+      - name: Start test MongoDB
+        run: docker compose --profile test up -d --wait mongo-test
+
+      - name: Integration tests
+        run: uv run --locked pytest -m integration
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose --profile test logs --no-color --tail=200 mongo-test
+
+      - name: Stop test MongoDB
+        if: always()
+        run: docker compose --profile test rm -sf mongo-test
+
   docker:
     name: Docker image and stack
     runs-on: ubuntu-24.04

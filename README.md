@@ -120,11 +120,17 @@ error details. Redis is added to the checks when it is first used (Milestone 5).
 |---|---|
 | `make install` | Install locked dependencies (`uv sync --locked`) |
 | `make run` | Run the API locally with auto-reload |
-| `make test` | Unit tests with coverage |
+| `make test` | Unit tests with coverage (no services needed) |
+| `make test-integration` | Integration tests against a throwaway MongoDB (needs Docker; cleans up after itself) |
 | `make lint` / `make format` / `make format-check` | Ruff lint / format / verify formatting |
 | `make typecheck` | mypy in strict mode |
 | `make check` | All of the above checks and the tests |
 | `make up` / `make down` / `make logs` / `make health` | Docker stack lifecycle |
+
+Integration tests use a separate, ephemeral MongoDB (Compose profile `test`) published only on
+`127.0.0.1:27018`; it never touches your dev data and is not started by `make up`. Set
+`MONGODB_TEST_URI` to point the tests at another instance. If that instance is down, the tests fail
+with instructions instead of being skipped.
 
 Run `make help` for the list. Dependencies are pinned exactly in `pyproject.toml` and locked in
 `uv.lock`.
@@ -145,7 +151,7 @@ Run `make help` for the list. Dependencies are pinned exactly in `pyproject.toml
 
 ```
 src/docusearch/    application code (api/, core/, db/, main.py)
-tests/             unit tests (integration tests arrive with MongoDB, Milestone 2)
+tests/             unit/ (no services) and integration/ (real MongoDB, `make test-integration`)
 docs/              architecture, roadmap, architecture decision records
 Dockerfile         one image for the API (and, later, the worker)
 docker-compose.yml local stack

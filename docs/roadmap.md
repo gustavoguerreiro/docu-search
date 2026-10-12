@@ -51,8 +51,10 @@ Sub-steps (one per session):
 1. ✅ Mongo settings, client lifecycle in the app lifespan (`tz_aware=True`, bounded timeouts), real
    `mongodb` readiness check. ADR-0011. Verified against the Compose MongoDB: ready 200 → 503 when
    stopped (2 s) → 200 after restart; `/live` unaffected. CI asserts the check is `ok`.
-2. ⬜ Integration-test infrastructure: real MongoDB for tests locally and in CI (decide how tests reach
-   MongoDB; the Compose instance has no host port). First integration tests: client lifecycle, ping.
+2. ✅ Integration-test infrastructure (ADR-0012): throwaway `mongo-test` service in the Compose `test`
+   profile (loopback `127.0.0.1:27018`, tmpfs data), `make test-integration`, unique database per test,
+   `integration` CI job. First tests: ping, UTC-aware round trip, client closed by the lifespan, `/ready`
+   200/503 through the real lifecycle. Verified locally; the new CI job has not run on GitHub yet.
 3. ⬜ UTC-aware timestamp helper and ObjectId conversion/validation helpers.
 4. ⬜ Collection/index initialization (`users`, `documents`, `chunks`, `refresh_tokens`) with index
    verification, run at startup.

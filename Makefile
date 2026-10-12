@@ -4,7 +4,7 @@
 .DEFAULT_GOAL := help
 UV_RUN := uv run --locked
 
-.PHONY: help install run up down logs health test lint format format-check typecheck check
+.PHONY: help install run up down logs health test test-integration test-db-up test-db-down lint format format-check typecheck check
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -18,8 +18,8 @@ run: ## Run the API locally with auto-reload on http://127.0.0.1:8000
 up: ## Build and start the Docker stack (waits until services are healthy)
 	docker compose up -d --build --wait
 
-down: ## Stop the Docker stack; named volumes (data) are kept
-	docker compose down
+down: ## Stop the Docker stack (incl. the test database); named volumes (data) are kept
+	docker compose --profile "*" down
 
 logs: ## Follow logs of the Docker stack
 	docker compose logs -f --tail=100
@@ -32,6 +32,16 @@ health: ## Call the liveness and readiness endpoints of the running stack
 
 test: ## Run the unit test suite with coverage
 	$(UV_RUN) pytest -m "not integration" --cov --cov-report=term-missing
+
+test-db-up: ## Start the throwaway MongoDB used by integration tests (127.0.0.1:27018)
+	docker compose --profile test up -d --wait mongo-test
+
+test-db-down: ## Remove the throwaway test MongoDB (its data is ephemeral)
+	docker compose --profile test rm -sf mongo-test
+
+test-integration: ## Run integration tests against a throwaway MongoDB (always cleaned up)
+	$(MAKE) test-db-up
+	$(UV_RUN) pytest -m integration; rc=$$?; $(MAKE) test-db-down; exit $$rc
 
 lint: ## Lint with Ruff
 	$(UV_RUN) ruff check .

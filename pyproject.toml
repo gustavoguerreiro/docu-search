@@ -76,7 +76,10 @@ select = [
 python_version = "3.13"
 strict = true
 files = ["src", "tests"]
-mypy_path = ["src"]
+# Roots for module names: `src` (the package) and the repo root (tests.conftest vs
+# tests.integration.conftest, which are otherwise the same module name "conftest").
+mypy_path = ["src", "."]
+explicit_package_bases = true
 warn_unreachable = true
 plugins = ["pydantic.mypy"]
 

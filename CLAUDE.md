@@ -58,7 +58,8 @@ make up            # docker compose up -d --build --wait (api + mongo + redis)
 make down          # stop the stack; volumes are kept (never use `down -v` without asking)
 make logs          # follow stack logs
 make health        # curl live/ready on the running stack (127.0.0.1:8000)
-make test          # pytest (unit, with coverage); integration tests are marked `integration`
+make test          # pytest (unit, with coverage); excludes everything under tests/integration
+make test-integration  # throwaway MongoDB (profile `test`, 127.0.0.1:27018) -> pytest -m integration -> cleanup
 make lint          # ruff check
 make format        # ruff format   (make format-check to verify only)
 make typecheck     # mypy (strict)
@@ -73,6 +74,9 @@ clients) belongs in `main.lifespan`.
 DB: `db/mongo.py` builds the PyMongo `AsyncMongoClient` (`tz_aware=True`, bounded timeouts); the lifespan
 owns it (`app.state.mongo_client`, `app.state.mongo_db`) and registers the `mongodb` readiness check.
 Never create clients at import time. The URI is a `SecretStr`: log only the db name / error types.
+Integration tests: put them in `tests/integration/` (auto-marked `integration`); use the `mongo_client` /
+`mongo_db` / `mongo_settings` fixtures, which give every test its own `docusearch_test_*` database and drop it.
+Never point them at a non-test database. Unreachable MongoDB must fail, not skip.
 Config: add fields to `core/settings.py` (`Settings`) and mirror them in `.env.example`; in tests
 build `Settings(_env_file=None)` so a developer's local `.env` never leaks in.
 Logging: `core/logging_setup.py`; pass context via `extra=`, never inside the message string
