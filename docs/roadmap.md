@@ -55,7 +55,7 @@ Sub-steps (one per session):
    profile (loopback `127.0.0.1:27018`, tmpfs data), `make test-integration`, unique database per test,
    `integration` CI job. First tests: ping, UTC-aware round trip, client closed by the lifespan, `/ready`
    200/503 through the real lifecycle. Verified locally; the new CI job has not run on GitHub yet.
-3. ⬜ UTC-aware timestamp helper and ObjectId conversion/validation helpers.
+3. ✅ `core.clock.utc_now()` (aware UTC, millisecond-truncated so values survive a MongoDB round trip unchanged) and `db.ids` (`parse_object_id`, `object_id_to_str`, `InvalidIdError`, pydantic `ObjectIdStr` → 422 on malformed ids). Unit + integration tests. Policy for unknown-vs-malformed ids (404 vs 422) is decided with the document endpoints.
 4. ⬜ Collection/index initialization (`users`, `documents`, `chunks`, `refresh_tokens`) with index
    verification, run at startup.
 5. ⬜ Minimal repository modules for the initial collections.
