@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 
 from docusearch.api.errors import ApiError, ErrorResponse
+from docusearch.auth.refresh_tokens import InvalidRefreshTokenError
 from docusearch.auth.service import AuthService, InvalidCredentialsError, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -42,6 +43,14 @@ class LoginRequest(BaseModel):
     email: EmailStr = Field(max_length=254, examples=["ana@example.com"])
     # Only bounded here: the registration policy must not lock out older, shorter passwords.
     password: SecretStr = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+
+
+class RefreshRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Bounded only to cap request size. Whether it is a valid token is the service's call, so that
+    # every bad token (short, long, malformed, unknown) gets the same 401.
+    refresh_token: SecretStr = Field(max_length=4096)
 
 
 class TokenResponse(BaseModel):
@@ -101,3 +110,49 @@ async def login(body: LoginRequest, response: Response, service: AuthServiceDep)
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
     return token_response(pair, response)
+
+
+@router.post(
+    "/refresh",
+    summary="Refresh the session",
+    description=(
+        "Exchanges a refresh token for a new access token and a new refresh token. Refresh "
+        "tokens are single use: the one sent here stops working. Sending an already-used token "
+        "ends the whole session, because it means the token was copied. A session ends a fixed "
+        "time after login whatever the refreshes."
+    ),
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "model": ErrorResponse,
+            "description": "The refresh token is unknown, expired, used or revoked.",
+        }
+    },
+)
+async def refresh(
+    body: RefreshRequest, response: Response, service: AuthServiceDep
+) -> TokenResponse:
+    try:
+        pair = await service.refresh(body.refresh_token.get_secret_value())
+    except InvalidRefreshTokenError as exc:
+        raise ApiError(
+            status.HTTP_401_UNAUTHORIZED,
+            "invalid_refresh_token",
+            "The refresh token is invalid or expired.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    return token_response(pair, response)
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Log out",
+    description=(
+        "Ends the session the refresh token belongs to. Always answers `204`, including for "
+        "unknown or already-used tokens, so it reveals nothing about which tokens exist. Access "
+        "tokens already issued remain valid until they expire (at most 15 minutes)."
+    ),
+)
+async def logout(body: RefreshRequest, service: AuthServiceDep) -> Response:
+    await service.logout(body.refresh_token.get_secret_value())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

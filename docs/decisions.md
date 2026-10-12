@@ -390,3 +390,32 @@ tested with a generous ratio, not an exact bound. Account lockout and rate limit
 (Milestone 7), so password guessing is limited only by Argon2's cost. The error codes are part of the
 public contract from now on.
 
+---
+
+## ADR-0018 — Refresh and logout endpoints
+
+**Status:** Accepted (Milestone 3)
+
+**Context:** The rotation rules of ADR-0016 need an HTTP surface whose failure modes leak nothing and
+that is easy for a client to handle.
+
+**Decision:**
+- `POST /auth/refresh` takes the refresh token in the JSON body and returns a new access token and a new
+  refresh token (`Cache-Control: no-store`). Every failure (unknown, malformed, wrong shape, expired,
+  already used, revoked, owner deleted) is the same `401` with code `invalid_refresh_token`.
+- The request schema only bounds the size (4096 characters); it does not validate token shape, so a long
+  or odd token is a `401` like any other and clients need one rule, not two.
+- If the token is valid but its user no longer exists, the refresh fails and all of that user's sessions
+  are revoked. The existence check lives in `AuthService`, which knows both users and tokens; the
+  refresh-token service deliberately does not.
+- `POST /auth/logout` always answers `204`, with no body, for valid, spent, unknown and malformed tokens.
+  It ends the session (the whole family), so logging out with the newest token after rotations kills the
+  session as a whole.
+- Tokens are carried in the body, not cookies: there is no browser client, hence no CSRF surface and no
+  cookie flags to get wrong.
+
+**Consequences:** A client that loses a refresh response and retries loses the session (strict reuse
+detection, ADR-0016). Logout does not invalidate access tokens already issued, which stay usable for up
+to their 15-minute lifetime. If a browser frontend is ever added, cookie transport and CSRF protection
+need their own decision.
+

@@ -86,7 +86,9 @@ Sub-steps (one per session):
    (12-128 chars); dummy-hash timing equalization; common error body (`api/errors.py`, validation
    errors never echo values). ADR-0017. Verified end to end against the Docker stack, incl. a log-leak
    check, and mutation-checked.
-4. ⬜ `POST /auth/refresh` and `POST /auth/logout` (revocation).
+4. ✅ `POST /auth/refresh` (single use, rotation, reuse revokes the session, missing user ends
+   sessions) and `POST /auth/logout` (always `204`, idempotent). Refresh token travels in the JSON body.
+   Verified end to end against the Docker stack and with concurrent refreshes.
 5. ⬜ Authentication dependency, `GET /auth/me`, ownership policy helper, cross-user tests.
 
 Acceptance: authentication tests pass; invalid, expired, revoked and malformed tokens are rejected;

@@ -23,7 +23,7 @@ What exists and works today:
 - Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
   tested against a real MongoDB; not yet exposed through the API
 - Authentication: registration and login endpoints, Argon2id password hashing, JWT access tokens,
-  rotating refresh tokens with reuse detection (refresh/logout/`me` endpoints follow in this milestone)
+  rotating refresh tokens with reuse detection; refresh and logout endpoints (`/auth/me` follows)
 - One error body for every failure: `{"error": {"code", "message", "details"?}}`
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
@@ -120,6 +120,8 @@ token, secret, authorization, ...) are redacted.
 | GET | `/api/v1/health/ready` | Readiness: `200` when all dependency checks pass, otherwise `503` |
 | POST | `/api/v1/auth/register` | Create an account. Always `202` with the same body, whether or not the email exists (no user enumeration). Password: 12-128 characters |
 | POST | `/api/v1/auth/login` | Returns `access_token` (15 min), `refresh_token` and `expires_in`; `401` with one body for any failure |
+| POST | `/api/v1/auth/refresh` | Body `{"refresh_token"}`. Returns a new token pair; the sent token stops working. Reusing a spent token ends the whole session |
+| POST | `/api/v1/auth/logout` | Body `{"refresh_token"}`. Ends the session; always `204` |
 
 `/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`) and
 `indexes` (the required MongoDB indexes exist; created at startup, retried until they do):

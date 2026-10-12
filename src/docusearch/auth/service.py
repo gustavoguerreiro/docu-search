@@ -1,4 +1,4 @@
-"""Authentication use cases: register and log in.
+"""Authentication use cases: register, log in, refresh and log out.
 
 Two properties are deliberate:
 - `register` does the same work and gives the same outcome whether or not the email exists, so it
@@ -11,7 +11,7 @@ import logging
 import secrets
 from dataclasses import dataclass, field
 
-from docusearch.auth.refresh_tokens import RefreshTokenService
+from docusearch.auth.refresh_tokens import InvalidRefreshTokenError, RefreshTokenService
 from docusearch.core.passwords import hash_password, verify_password
 from docusearch.core.settings import Settings
 from docusearch.core.tokens import create_access_token
@@ -65,6 +65,27 @@ class AuthService:
             refresh_token=refresh.token,
             expires_in=self._settings.access_token_ttl_minutes * 60,
         )
+
+    async def refresh(self, refresh_token: str) -> TokenPair:
+        """Exchange a refresh token for a new access token and the next refresh token.
+
+        Raises `InvalidRefreshTokenError` for every failure, including a token whose user no longer
+        exists (in which case all of that user's sessions are ended).
+        """
+        session = await self._refresh_tokens.rotate(refresh_token)
+        if await self._users.get_by_id(session.user_id) is None:
+            await self._refresh_tokens.revoke_all_for_user(session.user_id)
+            raise InvalidRefreshTokenError
+        return TokenPair(
+            access_token=create_access_token(session.user_id, self._settings),
+            refresh_token=session.refresh_token.token,
+            expires_in=self._settings.access_token_ttl_minutes * 60,
+        )
+
+    async def logout(self, refresh_token: str) -> None:
+        """End the session the token belongs to. Never fails and never reveals whether the token
+        was valid."""
+        await self._refresh_tokens.revoke(refresh_token)
 
     async def _get_dummy_hash(self) -> str:
         """A real hash of a random password: verifying against it costs what a real check costs."""
