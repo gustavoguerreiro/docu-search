@@ -74,5 +74,7 @@ Config: add fields to `core/settings.py` (`Settings`) and mirror them in `.env.e
 build `Settings(_env_file=None)` so a developer's local `.env` never leaks in.
 Logging: `core/logging_setup.py`; pass context via `extra=`, never inside the message string
 (redaction is key-based).
+CI: `.github/workflows/ci.yml` mirrors `make check` plus a Docker stack smoke test. Pin actions by commit
+SHA, keep `UV_VERSION` equal to the Dockerfile's uv version, and keep CI commands identical to the Makefile.
 Docker: one `Dockerfile` (non-root, pinned bases) for API and worker; `docker-compose.yml` publishes only
 the API on 127.0.0.1:8000. Mongo/Redis have no host ports. Pin new image tags exactly.

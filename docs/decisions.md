@@ -162,3 +162,25 @@ must be safe by default without credentials.
 **Consequences:** Reproducible, small (~218 MB) image. Host-side tools cannot reach Mongo/Redis without
 an explicit override; Milestone 2 decides how integration tests reach MongoDB. Uvicorn's first two
 startup lines predate the app's logging setup and stay plain text.
+
+---
+
+## ADR-0010 — CI on GitHub Actions
+
+**Status:** Accepted (Milestone 1)
+
+**Context:** Every change must be checked the same way locally and in CI, on Linux, with the same
+pinned toolchain.
+
+**Decision:** One workflow with two independent jobs. `python` runs `uv sync --locked`, Ruff
+(lint + format check), mypy and the unit tests using the same commands as the Makefile. `docker`
+validates the Compose file, builds the image, starts the whole stack with `--wait` and calls the
+live/ready endpoints. Permissions are `contents: read`, superseded runs are cancelled, jobs have
+timeouts, and third-party actions are pinned to commit SHAs (the release is in a comment) because tags
+can be moved. uv is pinned to the same version as the Dockerfile (`UV_VERSION`). `.gitattributes`
+forces LF so the Makefile and Dockerfile work on Windows checkouts.
+
+**Consequences:** Dependency updates (uv, actions, base images) are deliberate edits. The workflow was
+validated with actionlint and by running its commands locally and in a clean Linux container, but it
+has not run on GitHub yet; integration tests (MongoDB/Redis) and any coverage threshold are added when
+those tests exist.

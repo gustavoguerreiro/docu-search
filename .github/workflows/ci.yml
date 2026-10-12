@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: the workflow only reads the repository.
+permissions:
+  contents: read
+
+# A newer push to the same ref makes the older run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.20"
+
+jobs:
+  python:
+    name: Lint, types, tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Actions are pinned to commit SHAs (the comment names the release) because tags can move.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+
+      # Python version comes from .python-version; --locked fails if uv.lock is stale.
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Ruff lint
+        run: uv run --locked ruff check .
+
+      - name: Ruff format check
+        run: uv run --locked ruff format --check .
+
+      - name: mypy
+        run: uv run --locked mypy
+
+      - name: Unit tests
+        run: uv run --locked pytest -m "not integration" --cov --cov-report=term-missing
+
+  docker:
+    name: Docker image and stack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate compose file
+        run: docker compose config -q
+
+      # Builds the image, starts api + mongo + redis and waits for their health checks.
+      - name: Start stack
+        run: docker compose up -d --build --wait
+
+      - name: Check API health endpoints
+        run: |
+          curl -fsS http://127.0.0.1:8000/api/v1/health/live
+          curl -fsS http://127.0.0.1:8000/api/v1/health/ready
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down
