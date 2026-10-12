@@ -62,6 +62,14 @@ async def test_lifespan_logs_start_and_stop(capsys: pytest.CaptureFixture[str]) 
     assert started["app_env"] == "local"
 
 
+class SpyDatabase:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __getitem__(self, collection: str) -> object:
+        return object()  # repositories only hold on to the collection handle
+
+
 class SpyMongoClient:
     def __init__(self) -> None:
         self.closed = False
@@ -72,8 +80,8 @@ class SpyMongoClient:
         self.pings += 1
         return {"ok": 1.0}
 
-    def __getitem__(self, name: str) -> str:
-        return f"db:{name}"
+    def __getitem__(self, name: str) -> "SpyDatabase":
+        return SpyDatabase(name)
 
     async def close(self) -> None:
         self.closed = True
@@ -101,7 +109,7 @@ async def test_lifespan_owns_the_mongo_client(spy_client: SpyMongoClient) -> Non
 
     async with app.router.lifespan_context(app):
         assert app.state.mongo_client is spy_client
-        assert app.state.mongo_db == "db:lifecycle_db"
+        assert app.state.mongo_db.name == "lifecycle_db"
         assert not spy_client.closed
 
     assert spy_client.closed

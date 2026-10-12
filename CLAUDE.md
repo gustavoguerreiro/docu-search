@@ -81,6 +81,10 @@ Auth primitives: `core/passwords.py` (async Argon2id; never hash on the event lo
 (HS256 access tokens; one `InvalidTokenError` for callers). Never log tokens, hashes or the key; never
 add algorithms to `decode`'s list. `JWT_SECRET_KEY` is required in production and random per process
 otherwise. Unit tests in `tests/unit/core/test_tokens.py` are security-relevant: don't loosen them.
+Errors: raise `api.errors.ApiError(status, code, message)`; every failure uses the body
+`{"error": {"code", "message", "details"?}}`. Validation errors must never echo submitted values.
+Registration must stay indistinguishable for existing emails and login must verify against the dummy
+hash for unknown emails (`auth/service.py`; covered by `tests/unit/auth/test_service.py`: don't loosen).
 Refresh tokens: `auth/refresh_tokens.py` (`RefreshTokenService`: issue/rotate/revoke). Never store or log a raw
 token; rotation order (create successor, then atomic revoke) and family revocation on reuse are
 security-relevant, covered by `tests/integration/test_refresh_token_service.py`: don't loosen them.

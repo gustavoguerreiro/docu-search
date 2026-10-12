@@ -357,3 +357,36 @@ a short grace window could soften that at the cost of a larger replay window, an
 Access tokens issued before a revocation stay valid until they expire (at most 15 minutes). The service
 does not check that the user still exists; the endpoint layer must.
 
+---
+
+## ADR-0017 — Registration and login: no user enumeration, one error body
+
+**Status:** Accepted (Milestone 3). The uniform-registration choice was made by default when the author
+did not answer the question; revisit if the UX cost below matters more than the privacy gain.
+
+**Context:** Without email delivery the API cannot tell an account owner "someone tried to register your
+email", so the choice is between revealing existence (409) and a uniform answer.
+
+**Decision:**
+- `POST /auth/register` always answers `202` with the same body. The password hash is computed before
+  the insert on every path, and a duplicate email is detected by the unique index, so neither the body,
+  the status nor (approximately) the timing reveals whether the email exists. No tokens are issued at
+  registration: the user logs in afterwards.
+- `POST /auth/login` verifies the password against a real hash of a random password when the email is
+  unknown, so both failure paths cost one Argon2 verification, and returns one `401` body for both.
+- Password policy is length only: 12 to 128 characters at registration. Login accepts any length up to
+  128 so older, shorter passwords are not locked out by a policy change. No composition rules.
+- Token responses carry `Cache-Control: no-store`.
+- Every error uses `{"error": {"code", "message", "details"?}}`. Validation details list location,
+  message and type but never the submitted value (FastAPI's default echoes it, which would return a
+  password to the caller and into proxies' logs). Unexpected errors are a generic `500`, logged
+  server-side only.
+- Refresh tokens travel in the JSON body (API-only service, no browser cookie flow, so no CSRF surface).
+
+**Consequences:** A person who registers an email that already has an account receives the same
+success response but cannot log in with the new password; with no email channel there is nothing better
+to tell them. Timing equalization is approximate (a database lookup differs between paths) and is
+tested with a generous ratio, not an exact bound. Account lockout and rate limiting do not exist yet
+(Milestone 7), so password guessing is limited only by Argon2's cost. The error codes are part of the
+public contract from now on.
+

@@ -82,8 +82,10 @@ Sub-steps (one per session):
    rotation per session family, reuse revokes the family, absolute session lifetime,
    `REFRESH_TOKEN_TTL_DAYS`, `family_id` index. Verified against real MongoDB, incl. concurrent rotation
    and 5 mutation checks. Chosen by default (option A) when the author did not pick; easy to relax.
-3. ⬜ Auth service + `POST /auth/register` and `POST /auth/login`: email normalization, no user
-   enumeration (uniform responses, dummy-hash timing), password policy, consistent error body.
+3. ✅ `AuthService` + `POST /auth/register` (uniform `202`) and `POST /auth/login`; password policy
+   (12-128 chars); dummy-hash timing equalization; common error body (`api/errors.py`, validation
+   errors never echo values). ADR-0017. Verified end to end against the Docker stack, incl. a log-leak
+   check, and mutation-checked.
 4. ⬜ `POST /auth/refresh` and `POST /auth/logout` (revocation).
 5. ⬜ Authentication dependency, `GET /auth/me`, ownership policy helper, cross-user tests.
 

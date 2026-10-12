@@ -11,11 +11,16 @@ from functools import partial
 from fastapi import FastAPI
 
 from docusearch import __version__
-from docusearch.api import health
+from docusearch.api import auth, health
+from docusearch.api.errors import install_error_handlers
+from docusearch.auth.refresh_tokens import RefreshTokenService
+from docusearch.auth.service import AuthService
 from docusearch.core.logging_setup import configure_logging
 from docusearch.core.settings import Settings, get_settings
 from docusearch.db.indexes import IndexInitializer
 from docusearch.db.mongo import create_client, get_database, ping
+from docusearch.db.repositories.refresh_tokens import RefreshTokenRepository
+from docusearch.db.repositories.users import UserRepository
 
 API_PREFIX = "/api/v1"
 
@@ -34,6 +39,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Slightly above the driver's own timeout so the driver reports first.
     app.state.readiness_checks["mongodb"] = partial(
         ping, mongo_client, timeout_seconds=settings.mongodb_timeout_ms / 1000 + 1
+    )
+
+    refresh_tokens = RefreshTokenService(RefreshTokenRepository(app.state.mongo_db), settings)
+    app.state.auth_service = AuthService(
+        UserRepository(app.state.mongo_db), refresh_tokens, settings
     )
 
     # Try once now so constraints exist before the first request. If MongoDB is down the app still
@@ -69,5 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.readiness_checks = {}
 
+    install_error_handlers(app)
     app.include_router(health.router, prefix=API_PREFIX)
+    app.include_router(auth.router, prefix=API_PREFIX)
     return app

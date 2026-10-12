@@ -22,8 +22,9 @@ What exists and works today:
   readiness checks
 - Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
   tested against a real MongoDB; not yet exposed through the API
-- Authentication primitives (Argon2id password hashing, JWT access tokens, rotating refresh tokens
-  with reuse detection); no auth endpoints yet
+- Authentication: registration and login endpoints, Argon2id password hashing, JWT access tokens,
+  rotating refresh tokens with reuse detection (refresh/logout/`me` endpoints follow in this milestone)
+- One error body for every failure: `{"error": {"code", "message", "details"?}}`
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
 
@@ -117,6 +118,8 @@ token, secret, authorization, ...) are redacted.
 |---|---|---|
 | GET | `/api/v1/health/live` | Liveness: `200` while the process is up; does not check dependencies |
 | GET | `/api/v1/health/ready` | Readiness: `200` when all dependency checks pass, otherwise `503` |
+| POST | `/api/v1/auth/register` | Create an account. Always `202` with the same body, whether or not the email exists (no user enumeration). Password: 12-128 characters |
+| POST | `/api/v1/auth/login` | Returns `access_token` (15 min), `refresh_token` and `expires_in`; `401` with one body for any failure |
 
 `/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`) and
 `indexes` (the required MongoDB indexes exist; created at startup, retried until they do):
