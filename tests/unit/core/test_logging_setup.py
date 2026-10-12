@@ -55,8 +55,8 @@ def test_extra_cannot_overwrite_core_fields(stream: io.StringIO) -> None:
 def test_sensitive_extra_keys_are_redacted(stream: io.StringIO) -> None:
     entry = emit(
         stream,
-        password="hunter2",  # noqa: S106
-        refresh_token="abc",  # noqa: S106
+        password="hunter2",
+        refresh_token="abc",
         headers={"Authorization": "Bearer xyz", "accept": "json"},
         attempts=[{"api_key": "k"}],
     )

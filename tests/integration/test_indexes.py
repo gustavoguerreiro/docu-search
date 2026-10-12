@@ -164,7 +164,7 @@ async def test_listing_a_users_documents_uses_the_owner_index_without_sorting(
     cursor = documents.find({"owner_id": owners[0]}).sort("created_at", -1).limit(20)
     stages = await winning_stages(cursor)
 
-    assert "owner_created" in index_names(stages)
+    assert "owner_created_id" in index_names(stages)
     assert "COLLSCAN" not in stage_names(stages)
     assert "SORT" not in stage_names(stages)  # order comes from the index
 

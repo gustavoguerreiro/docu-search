@@ -9,7 +9,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 |---|---|---|
 | 0 | Repository assessment and project plan | ✅ |
 | 1 | Project foundation | ✅ |
-| 2 | MongoDB infrastructure and persistence | 🟨 |
+| 2 | MongoDB infrastructure and persistence | ✅ |
 | 3 | Authentication and authorization | ⬜ |
 | 4 | Document upload and storage | ⬜ |
 | 5 | Asynchronous ingestion pipeline | ⬜ |
@@ -44,7 +44,7 @@ Acceptance: app starts locally; health endpoints work; config from env vars; tes
 pass; no real credentials needed; README explains setup. All verified locally (see step 6). Remaining
 caveat: the GitHub Actions workflow has not run on GitHub yet.
 
-## Milestone 2 — MongoDB infrastructure and persistence 🟨
+## Milestone 2 — MongoDB infrastructure and persistence ✅
 
 Sub-steps (one per session):
 
@@ -57,11 +57,18 @@ Sub-steps (one per session):
    200/503 through the real lifecycle. Verified locally; the new CI job has not run on GitHub yet.
 3. ✅ `core.clock.utc_now()` (aware UTC, millisecond-truncated so values survive a MongoDB round trip unchanged) and `db.ids` (`parse_object_id`, `object_id_to_str`, `InvalidIdError`, pydantic `ObjectIdStr` → 422 on malformed ids). Unit + integration tests. Policy for unknown-vs-malformed ids (404 vs 422) is decided with the document endpoints.
 4. ✅ Index definitions, idempotent `ensure_indexes`, `verify_indexes`, and `IndexInitializer` run at startup (ADR-0013). Collections are created implicitly by index creation. `/ready` gains an `indexes` check that retries, so a process started while MongoDB was down repairs itself; readiness checks now run concurrently. Verified against a real MongoDB incl. query plans (`explain`). Text index deferred to Milestone 6.
-5. ⬜ Minimal repository modules for the initial collections.
+5. ✅ Repositories (`db/repositories/`: users, documents, chunks, refresh tokens) and record models
+   (`db/models.py`), limited to operations milestones 3–6 explicitly need. Ownership is inside every
+   document/chunk query; email normalization is centralized; refresh-token revocation is an atomic
+   single-use guard. Listing index changed to `(owner_id, created_at, _id)` (ADR-0014) with a
+   retired-index drop. Verified against real MongoDB, incl. concurrent registration and revocation,
+   and on an existing dev volume.
 
-Acceptance: connections opened and closed correctly; required indexes created and verified;
-integration tests run against a real MongoDB; database operations not hidden behind excessive
-abstractions.
+Acceptance (all met, verified locally): connections opened and closed correctly (lifespan, tested);
+required indexes created and verified (`verify_indexes`, `explain()` plans); integration tests run
+against a real MongoDB (`make test-integration`); repositories are thin classes over the driver with
+no interfaces or generic base class. Not verifiable from the development environment: the CI changes made in this
+milestone (`integration` job, `mongodb`/`indexes` readiness assertion) running on GitHub.
 
 ## Milestones 3–12
 

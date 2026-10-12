@@ -21,8 +21,12 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("email", ASCENDING)], name="email_unique", unique=True),
     ],
     collections.DOCUMENTS: [
-        # List a user's documents, newest first.
-        IndexModel([("owner_id", ASCENDING), ("created_at", DESCENDING)], name="owner_created"),
+        # List a user's documents, newest first, paginated. `_id` is the tie-breaker that keeps
+        # pages stable when documents share a timestamp, and it lets the index serve the whole sort.
+        IndexModel(
+            [("owner_id", ASCENDING), ("created_at", DESCENDING), ("_id", DESCENDING)],
+            name="owner_created_id",
+        ),
         # Per-user duplicate detection that is safe under concurrent uploads.
         IndexModel(
             [("owner_id", ASCENDING), ("sha256", ASCENDING)],
@@ -52,6 +56,13 @@ INDEXES: dict[str, list[IndexModel]] = {
 }
 
 
+# Indexes that earlier versions created and that no query uses anymore, dropped on startup so they
+# do not keep costing writes. Entries stay until no deployment can still have them.
+RETIRED_INDEXES: dict[str, list[str]] = {
+    collections.DOCUMENTS: ["owner_created"],  # replaced by owner_created_id (ADR-0014)
+}
+
+
 async def ensure_indexes(db: MongoDatabase) -> None:
     """Create every required index. Idempotent.
 
@@ -61,6 +72,16 @@ async def ensure_indexes(db: MongoDatabase) -> None:
     """
     for collection_name, models in INDEXES.items():
         await db[collection_name].create_indexes(models)
+
+    # Retire only after the replacements exist, so queries are never left without an index.
+    for collection_name, names in RETIRED_INDEXES.items():
+        existing = await db[collection_name].index_information()
+        for name in names:
+            if name in existing:
+                await db[collection_name].drop_index(name)
+                logger.info(
+                    "dropped retired index", extra={"collection": collection_name, "index": name}
+                )
 
 
 async def verify_indexes(db: MongoDatabase) -> list[str]:

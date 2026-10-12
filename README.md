@@ -11,15 +11,17 @@ infrastructure-as-code.
 
 ## Current status
 
-**Milestone 1 (project foundation) is complete; Milestone 2 (MongoDB persistence) is in progress.
-There are no product features yet.**
+**Milestones 1 (foundation) and 2 (MongoDB persistence) are complete. There are no product features
+yet: no HTTP endpoints beyond health checks.**
 
 What exists and works today:
 
 - FastAPI application with liveness and readiness endpoints under `/api/v1`
 - Configuration from environment variables, structured JSON logging
-- MongoDB client managed by the application lifecycle, required indexes created at startup, and real
-  readiness checks (no data access code or API features yet)
+- MongoDB client managed by the application lifecycle, required indexes created at startup, real
+  readiness checks
+- Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
+  tested against a real MongoDB; not yet exposed through the API
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
 
@@ -151,7 +153,7 @@ Run `make help` for the list. Dependencies are pinned exactly in `pyproject.toml
 ## Repository layout
 
 ```
-src/docusearch/    application code (api/, core/, db/, main.py)
+src/docusearch/    application code (api/, core/, db/ incl. repositories/, main.py)
 tests/             unit/ (no services) and integration/ (real MongoDB, `make test-integration`)
 docs/              architecture, roadmap, architecture decision records
 Dockerfile         one image for the API (and, later, the worker)

@@ -10,7 +10,7 @@ from docusearch.core.settings import Settings
 from docusearch.db.mongo import MongoClient, create_client, get_database, ping
 
 # Fake credential used only to prove that it never reaches logs.
-SECRET_URI = "mongodb://appuser:s3cr3t-pass@db.internal:27017"  # noqa: S105
+SECRET_URI = "mongodb://appuser:s3cr3t-pass@db.internal:27017"
 
 
 class FakeAdmin:

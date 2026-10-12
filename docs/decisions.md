@@ -237,7 +237,7 @@ no-host-port rule) and running tests inside a container (slower local loop).
 
 ## ADR-0013 — Indexes derived from access patterns, created at startup
 
-**Status:** Accepted (Milestone 2)
+**Status:** Accepted (Milestone 2); the documents listing index was amended by ADR-0014
 
 **Context:** Required indexes must be created and verified, and each must serve a known query.
 
@@ -263,3 +263,34 @@ write cost, so new ones need a stated query. Unique indexes fail to build if dup
 exists. Between startup and the first successful setup, uniqueness is not enforced; readiness reports
 that, but a deployment that ignores readiness could write duplicates. Multiple processes creating the
 same indexes concurrently is safe.
+
+---
+
+## ADR-0014 — Repository layer, offset pagination with an `_id` tie-breaker
+
+**Status:** Accepted (Milestone 2)
+
+**Context:** Milestones 3–6 need data access with ownership enforced in the query. Writing the listing
+query showed that the index from ADR-0013 could not serve a deterministic sort.
+
+**Decision:**
+- One small class per collection (`UserRepository`, `DocumentRepository`, `ChunkRepository`,
+  `RefreshTokenRepository`) constructed from the database handle. No abstract base, protocol or generic
+  CRUD layer: there is a single implementation, and the driver calls stay visible.
+- Operations are limited to what milestones 3–6 name. Status transitions and claiming for processing
+  are written with the worker (Milestone 5); search queries with Milestone 6.
+- Ownership is in the filter (`{_id, owner_id}`); another user's record is reported as not found.
+  Email normalization (`strip().lower()`) happens inside the repository so no caller can skip it.
+- Constraint violations become domain errors (`EmailAlreadyExistsError`, `DuplicateDocumentError`,
+  `DuplicateChunkError`) raised from the unique indexes, not from check-then-insert code. Refresh-token
+  `revoke` is a conditional update returning whether this call revoked it.
+- Records are frozen pydantic models; secret fields are excluded from `repr`.
+- Lists use offset pagination (bounded `limit` <= 100) sorted by `(created_at desc, _id desc)`. The
+  index `owner_created` became `owner_created_id` on `(owner_id, created_at desc, _id desc)` so the
+  whole sort comes from the index and pages stay stable when timestamps tie. The old index is listed in
+  `RETIRED_INDEXES` and dropped at startup; entries stay until no deployment can still have it.
+
+**Consequences:** Offset pagination can drift if documents are inserted between page requests and gets
+slower for very deep offsets; acceptable for per-user lists. Switching to keyset pagination later only
+changes the repository methods. Services that span collections (delete document + chunks) must tolerate
+a failure between steps.

@@ -77,6 +77,10 @@ Never create clients at import time. The URI is a `SecretStr`: log only the db n
 Integration tests: put them in `tests/integration/` (auto-marked `integration`); use the `mongo_client` /
 `mongo_db` / `mongo_settings` fixtures, which give every test its own `docusearch_test_*` database and drop it.
 Never point them at a non-test database. Unreachable MongoDB must fail, not skip.
+Repositories: `db/repositories/<collection>.py`, one thin class each, built from `app.state.mongo_db`. Every
+document/chunk operation takes `owner_id` and filters on it in the query. Add an operation only when a
+milestone needs it; map unique-index violations to a domain error; no base classes or interfaces.
+Test them in `tests/integration/test_repositories.py` against real MongoDB.
 Indexes: defined only in `db/indexes.py` (`INDEXES`), each with an explicit name and a comment naming the
 access pattern. Adding or changing one = edit there + an `explain()` test in `tests/integration/test_indexes.py`.
 Changing an existing index's options needs a migration (startup fails loudly on conflict, by design).
