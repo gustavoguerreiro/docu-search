@@ -419,3 +419,32 @@ detection, ADR-0016). Logout does not invalidate access tokens already issued, w
 to their 15-minute lifetime. If a browser frontend is ever added, cookie transport and CSRF protection
 need their own decision.
 
+---
+
+## ADR-0019 — Authenticated requests and the authorization policy
+
+**Status:** Accepted (Milestone 3)
+
+**Context:** Every later endpoint must establish who is calling and which data they may touch, in one
+way that is hard to get wrong.
+
+**Decision:**
+- Bearer access tokens only (`Authorization: Bearer`). `CurrentUser` is a FastAPI dependency that
+  verifies the token (ADR-0015) and loads the user from the database on every request, so deleting an
+  account takes effect immediately instead of at token expiry. The cost is one indexed read per request.
+- Failure codes, all `401` with `WWW-Authenticate: Bearer`: `not_authenticated` (no credentials),
+  `token_expired` (a well-formed token past its expiry, so the client knows to refresh) and
+  `invalid_token` (everything else).
+- **Policy:** the caller's identity comes only from the verified token. Routes pass `user.id` to the
+  repositories as the owner; no path, query, body or header value is ever used to select the owner.
+  Repositories filter on the owner inside the query (ADR-0014), so another user's resource is a `404`
+  indistinguishable from a missing one, and a user's listings contain only their own records.
+- `GET /auth/me` returns id, email and creation time, never the password hash, with `no-store`.
+
+**Consequences:** There is no role system and no admin: authorization is purely "owner only". If roles
+are ever needed, the dependency is the single place to extend. The per-request user lookup is the first
+thing to cache if it ever shows up in measurements (it would reintroduce a revocation delay). Access
+tokens already issued survive logout until they expire (at most 15 minutes), pinned by a test so a
+change is deliberate. API-level cross-user tests for real resources are written with the document
+endpoints in Milestone 4, following the pattern proven here.
+

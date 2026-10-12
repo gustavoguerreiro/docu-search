@@ -85,6 +85,9 @@ Errors: raise `api.errors.ApiError(status, code, message)`; every failure uses t
 `{"error": {"code", "message", "details"?}}`. Validation errors must never echo submitted values.
 Registration must stay indistinguishable for existing emails and login must verify against the dummy
 hash for unknown emails (`auth/service.py`; covered by `tests/unit/auth/test_service.py`: don't loosen).
+Protected routes: take `user: CurrentUser` (`api/dependencies.py`) and pass `user.id` as the owner to
+repositories. Never read an owner/user id from path, query, body or headers. Another user's resource is a 404,
+indistinguishable from a missing one. `tests/integration/test_auth_me_and_policy.py` pins this: don't loosen.
 Refresh/logout endpoints live in `api/auth.py`; the schema bounds the token only loosely (4096) so every bad
 token gets the same `401` from the service, never a `422`.
 Refresh tokens: `auth/refresh_tokens.py` (`RefreshTokenService`: issue/rotate/revoke). Never store or log a raw

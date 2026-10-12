@@ -1,13 +1,16 @@
 """Authentication endpoints."""
 
-from typing import Annotated, Literal
+from datetime import datetime
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr
 
+from docusearch.api.dependencies import AuthServiceDep, CurrentUser
 from docusearch.api.errors import ApiError, ErrorResponse
 from docusearch.auth.refresh_tokens import InvalidRefreshTokenError
-from docusearch.auth.service import AuthService, InvalidCredentialsError, TokenPair
+from docusearch.auth.service import InvalidCredentialsError, TokenPair
+from docusearch.db.ids import ObjectIdStr
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -15,14 +18,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # keeps hashing work bounded; the hasher enforces its own byte limit as well.
 MIN_PASSWORD_LENGTH = 12
 MAX_PASSWORD_LENGTH = 128
-
-
-def get_auth_service(request: Request) -> AuthService:
-    service: AuthService = request.app.state.auth_service
-    return service
-
-
-AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 
 
 class RegisterRequest(BaseModel):
@@ -51,6 +46,12 @@ class RefreshRequest(BaseModel):
     # Bounded only to cap request size. Whether it is a valid token is the service's call, so that
     # every bad token (short, long, malformed, unknown) gets the same 401.
     refresh_token: SecretStr = Field(max_length=4096)
+
+
+class UserResponse(BaseModel):
+    id: ObjectIdStr
+    email: str
+    created_at: datetime
 
 
 class TokenResponse(BaseModel):
@@ -156,3 +157,22 @@ async def refresh(
 async def logout(body: RefreshRequest, service: AuthServiceDep) -> Response:
     await service.logout(body.refresh_token.get_secret_value())
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/me",
+    summary="Current user",
+    description="The account the access token belongs to.",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "model": ErrorResponse,
+            "description": (
+                "No credentials (`not_authenticated`), expired token (`token_expired`) or an "
+                "otherwise unusable token (`invalid_token`)."
+            ),
+        }
+    },
+)
+async def me(user: CurrentUser, response: Response) -> UserResponse:
+    response.headers["Cache-Control"] = "no-store"
+    return UserResponse(id=str(user.id), email=user.email, created_at=user.created_at)

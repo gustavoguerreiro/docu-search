@@ -11,8 +11,8 @@ infrastructure-as-code.
 
 ## Current status
 
-**Milestones 1 (foundation) and 2 (MongoDB persistence) are complete; Milestone 3 (authentication) is
-in progress. There are no product features yet: no HTTP endpoints beyond health checks.**
+**Milestones 1 (foundation), 2 (MongoDB persistence) and 3 (authentication) are complete. Document
+upload, processing and search do not exist yet.**
 
 What exists and works today:
 
@@ -23,7 +23,7 @@ What exists and works today:
 - Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
   tested against a real MongoDB; not yet exposed through the API
 - Authentication: registration and login endpoints, Argon2id password hashing, JWT access tokens,
-  rotating refresh tokens with reuse detection; refresh and logout endpoints (`/auth/me` follows)
+  rotating refresh tokens with reuse detection; register, login, refresh, logout and `me` endpoints
 - One error body for every failure: `{"error": {"code", "message", "details"?}}`
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
@@ -122,6 +122,7 @@ token, secret, authorization, ...) are redacted.
 | POST | `/api/v1/auth/login` | Returns `access_token` (15 min), `refresh_token` and `expires_in`; `401` with one body for any failure |
 | POST | `/api/v1/auth/refresh` | Body `{"refresh_token"}`. Returns a new token pair; the sent token stops working. Reusing a spent token ends the whole session |
 | POST | `/api/v1/auth/logout` | Body `{"refresh_token"}`. Ends the session; always `204` |
+| GET | `/api/v1/auth/me` | The authenticated account (`Authorization: Bearer <access_token>`). `401` codes: `not_authenticated`, `token_expired`, `invalid_token` |
 
 `/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`) and
 `indexes` (the required MongoDB indexes exist; created at startup, retried until they do):

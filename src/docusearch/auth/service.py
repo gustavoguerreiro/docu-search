@@ -1,4 +1,4 @@
-"""Authentication use cases: register, log in, refresh and log out.
+"""Authentication use cases: register, log in, refresh, log out and authenticate requests.
 
 Two properties are deliberate:
 - `register` does the same work and gives the same outcome whether or not the email exists, so it
@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from docusearch.auth.refresh_tokens import InvalidRefreshTokenError, RefreshTokenService
 from docusearch.core.passwords import hash_password, verify_password
 from docusearch.core.settings import Settings
-from docusearch.core.tokens import create_access_token
+from docusearch.core.tokens import InvalidTokenError, create_access_token, decode_access_token
+from docusearch.db.models import User
 from docusearch.db.repositories.users import EmailAlreadyExistsError, UserRepository
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,18 @@ class AuthService:
         """End the session the token belongs to. Never fails and never reveals whether the token
         was valid."""
         await self._refresh_tokens.revoke(refresh_token)
+
+    async def authenticate(self, access_token: str) -> User:
+        """Return the user an access token belongs to.
+
+        Raises `InvalidTokenError` (or `ExpiredTokenError`) if the token is not acceptable or its
+        user no longer exists: deleting an account takes effect immediately, not at token expiry.
+        """
+        claims = decode_access_token(access_token, self._settings)
+        user = await self._users.get_by_id(claims.user_id)
+        if user is None:
+            raise InvalidTokenError("invalid token")
+        return user
 
     async def _get_dummy_hash(self) -> str:
         """A real hash of a random password: verifying against it costs what a real check costs."""

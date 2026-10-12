@@ -10,7 +10,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | 0 | Repository assessment and project plan | ✅ |
 | 1 | Project foundation | ✅ |
 | 2 | MongoDB infrastructure and persistence | ✅ |
-| 3 | Authentication and authorization | 🟨 |
+| 3 | Authentication and authorization | ✅ |
 | 4 | Document upload and storage | ⬜ |
 | 5 | Asynchronous ingestion pipeline | ⬜ |
 | 6 | Text search | ⬜ |
@@ -70,7 +70,7 @@ against a real MongoDB (`make test-integration`); repositories are thin classes 
 no interfaces or generic base class. Not verifiable from the development environment: the CI changes made in this
 milestone (`integration` job, `mongodb`/`indexes` readiness assertion) running on GitHub.
 
-## Milestone 3 — Authentication and authorization 🟨
+## Milestone 3 — Authentication and authorization ✅
 
 Sub-steps (one per session):
 
@@ -89,10 +89,15 @@ Sub-steps (one per session):
 4. ✅ `POST /auth/refresh` (single use, rotation, reuse revokes the session, missing user ends
    sessions) and `POST /auth/logout` (always `204`, idempotent). Refresh token travels in the JSON body.
    Verified end to end against the Docker stack and with concurrent refreshes.
-5. ⬜ Authentication dependency, `GET /auth/me`, ownership policy helper, cross-user tests.
+5. ✅ `CurrentUser` dependency (`api/dependencies.py`), `GET /auth/me`, explicit authorization policy
+   (owner = authenticated principal only), deleted accounts lose access immediately. ADR-0019.
+   Cross-user tests at API level use a throwaway route with the real dependency and repository;
+   real document endpoints (and their cross-user tests) arrive in Milestone 4.
 
-Acceptance: authentication tests pass; invalid, expired, revoked and malformed tokens are rejected;
-cross-user access tests pass; secrets are not logged.
+Acceptance (all met, verified locally): authentication tests pass (108 integration + unit); invalid,
+expired, revoked and malformed tokens are rejected; cross-user access tests pass; secrets are not
+logged (checked against the container logs). Not done in this milestone, by design: rate limiting and
+account lockout (Milestone 7), access-token revocation, email verification and password reset.
 
 ## Milestones 4–12
 

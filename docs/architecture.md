@@ -113,6 +113,9 @@ Reliability principles (MongoDB, Redis and the filesystem are **not** one transa
 
 ## 6. Security model (summary)
 
+Status: implemented through Milestone 3 (authentication, refresh rotation, ownership in queries,
+uniform errors). Rate limiting, request correlation and metrics protection are Milestone 7.
+
 - Short-lived JWT access tokens (algorithm pinned, signature/exp/sub validated); refresh tokens
   rotated and stored only as hashes; logout revokes.
 - Passwords hashed with Argon2id; emails normalized consistently; registration/login avoid user
