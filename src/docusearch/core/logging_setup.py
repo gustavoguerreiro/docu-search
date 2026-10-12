@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any, TextIO
 
 REDACTED = "[REDACTED]"
+_UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
 _SENSITIVE_KEY_PARTS = (
     "password",
     "passwd",
@@ -26,7 +27,12 @@ _SENSITIVE_KEY_PARTS = (
 # Attributes every LogRecord has; anything else on the record came from `extra=`.
 _STANDARD_RECORD_ATTRS = frozenset(
     logging.LogRecord("", logging.INFO, "", 0, "", None, None).__dict__
-) | {"message", "asctime", "taskName"}
+) | {
+    "message",
+    "asctime",
+    "taskName",
+    "color_message",  # ANSI-colored duplicate of the message that uvicorn adds via `extra`
+}
 
 
 def _is_sensitive(key: str) -> bool:
@@ -74,3 +80,10 @@ def configure_logging(level: str = "INFO", *, stream: TextIO | None = None) -> N
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
+
+    # uvicorn installs its own handlers and stops propagation; hand its records to the root
+    # handler so they come out as JSON too.
+    for name in _UVICORN_LOGGERS:
+        uvicorn_logger = logging.getLogger(name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True

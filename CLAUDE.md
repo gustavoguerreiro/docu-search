@@ -53,6 +53,7 @@ Add a dependency with `uv add <pkg>==<version>` (or `--group dev`) and commit th
 
 ```
 make install       # uv sync --locked
+make run           # uvicorn docusearch.main:create_app --factory --reload (127.0.0.1:8000)
 make test          # pytest (unit, with coverage); integration tests are marked `integration`
 make lint          # ruff check
 make format        # ruff format   (make format-check to verify only)
@@ -61,6 +62,10 @@ make check         # all of the above
 ```
 
 Code lives in `src/docusearch/`, tests in `tests/unit/` (and later `tests/integration/`).
+App: `main.create_app(settings)` builds the FastAPI app (no import-time side effects); routers are
+mounted under `/api/v1`. Dependency checks for `/health/ready` are registered in
+`app.state.readiness_checks` (name -> async callable returning bool). Resource lifecycle (DB/Redis
+clients) belongs in `main.lifespan`.
 Config: add fields to `core/settings.py` (`Settings`) and mirror them in `.env.example`; in tests
 build `Settings(_env_file=None)` so a developer's local `.env` never leaks in.
 Logging: `core/logging_setup.py`; pass context via `extra=`, never inside the message string

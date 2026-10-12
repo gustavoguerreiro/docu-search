@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -10,15 +9,8 @@ from docusearch.core.logging_setup import REDACTED, configure_logging
 
 
 @pytest.fixture
-def stream() -> Iterator[io.StringIO]:
-    root = logging.getLogger()
-    saved_handlers, saved_level = root.handlers[:], root.level
-    buffer = io.StringIO()
-    try:
-        yield buffer
-    finally:
-        root.handlers[:] = saved_handlers
-        root.setLevel(saved_level)
+def stream() -> io.StringIO:
+    return io.StringIO()
 
 
 def emit(stream: io.StringIO, **extra: Any) -> dict[str, Any]:
@@ -111,3 +103,23 @@ def test_configure_logging_is_idempotent(stream: io.StringIO) -> None:
     logging.getLogger("docusearch.test").info("once")
 
     assert len(stream.getvalue().splitlines()) == 1
+
+
+@pytest.mark.parametrize("name", ["uvicorn", "uvicorn.error", "uvicorn.access"])
+def test_uvicorn_records_are_emitted_as_json(stream: io.StringIO, name: str) -> None:
+    uvicorn_logger = logging.getLogger(name)
+    uvicorn_logger.addHandler(logging.StreamHandler(io.StringIO()))  # simulate uvicorn's own
+    uvicorn_logger.propagate = False
+
+    configure_logging("INFO", stream=stream)
+    uvicorn_logger.info('%s - "GET /x" %d', "127.0.0.1", 200)
+
+    entry = json.loads(stream.getvalue())
+    assert entry["logger"] == name
+    assert entry["message"] == '127.0.0.1 - "GET /x" 200'
+
+
+def test_uvicorn_color_message_is_not_logged(stream: io.StringIO) -> None:
+    entry = emit(stream, color_message="\x1b[1mhello\x1b[0m")
+
+    assert "color_message" not in entry
