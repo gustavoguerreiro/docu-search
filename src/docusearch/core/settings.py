@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # Only HMAC-SHA256 is supported; the literal type keeps "none" and other algorithms unreachable.
     jwt_algorithm: Literal["HS256"] = "HS256"
     access_token_ttl_minutes: int = Field(default=15, ge=1, le=60)
+    # A session ends this long after login: refreshing does not extend it.
+    refresh_token_ttl_days: int = Field(default=14, ge=1, le=90)
 
     @field_validator("log_level", mode="before")
     @classmethod

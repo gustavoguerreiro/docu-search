@@ -325,3 +325,35 @@ a failure between steps.
 processes; run a single API process or set a key. HS256 means every verifier holds the signing key; if
 other services must verify tokens, switch to an asymmetric algorithm (a new ADR). There is no
 access-token revocation: tokens are short-lived and `jti` is available if a deny-list is ever needed.
+
+---
+
+## ADR-0016 — Refresh tokens: opaque, hashed, rotated per family with reuse detection
+
+**Status:** Accepted (Milestone 3). Chosen as the default when the author did not select among the
+options offered; revisit if the strict reuse behavior proves too aggressive.
+
+**Context:** Access tokens are short-lived and cannot be revoked, so long-lived sessions need a
+revocable credential whose theft is detectable.
+
+**Decision:**
+- A refresh token is 256 random bits (URL-safe, opaque). Only its SHA-256 hash is stored; a fast hash is
+  appropriate because the secret is high-entropy (Argon2 is for passwords). The raw value exists only in
+  the response that issues it.
+- Each login starts a *family* (`family_id`). Every refresh creates the successor in the same family and
+  atomically revokes the presented token. Presenting a token that is already revoked revokes the whole
+  family and is logged (user and family ids, never the token).
+- The successor is created before the old token is revoked, and if that revocation is lost to a
+  concurrent request the family (successor included) is revoked. A detected reuse therefore never leaves
+  a live token; a crash between the steps leaves an undelivered token that merely expires.
+- The successor inherits the old token's expiry, so a session ends `REFRESH_TOKEN_TTL_DAYS` after login
+  regardless of refreshes (absolute lifetime, no extra field).
+- Logout revokes the family and is idempotent and silent for unknown tokens. All failures raise one
+  `InvalidRefreshTokenError` with no detail. Malformed input is rejected before any database access.
+
+**Consequences:** Users must log in again at least every `REFRESH_TOKEN_TTL_DAYS` days. A client that
+retries a refresh after losing the response (so presents an already-rotated token) loses its session;
+a short grace window could soften that at the cost of a larger replay window, and is not implemented.
+Access tokens issued before a revocation stay valid until they expire (at most 15 minutes). The service
+does not check that the user still exists; the endpoint layer must.
+

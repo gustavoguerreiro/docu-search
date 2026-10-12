@@ -52,6 +52,8 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("expires_at", ASCENDING)], name="expires_ttl", expireAfterSeconds=0),
         # Revoke all sessions of a user.
         IndexModel([("user_id", ASCENDING)], name="user_id"),
+        # Revoke one session (logout, or reuse of a rotated token).
+        IndexModel([("family_id", ASCENDING)], name="family_id"),
     ],
 }
 

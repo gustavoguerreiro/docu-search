@@ -216,7 +216,9 @@ async def test_refresh_token_is_stored_by_hash_and_revoked_exactly_once(db: Mong
     tokens = RefreshTokenRepository(db)
     user = ObjectId()
     expires = utc_now() + timedelta(days=14)
-    created = await tokens.create(user_id=user, token_hash="hash-1", expires_at=expires)
+    created = await tokens.create(
+        user_id=user, family_id=ObjectId(), token_hash="hash-1", expires_at=expires
+    )
 
     assert created.revoked_at is None
     assert await tokens.get_by_hash("hash-1") == created
@@ -233,7 +235,10 @@ async def test_refresh_token_is_stored_by_hash_and_revoked_exactly_once(db: Mong
 async def test_concurrent_revocations_succeed_for_exactly_one_caller(db: MongoDatabase) -> None:
     tokens = RefreshTokenRepository(db)
     await tokens.create(
-        user_id=ObjectId(), token_hash="contested", expires_at=utc_now() + timedelta(days=1)
+        user_id=ObjectId(),
+        family_id=ObjectId(),
+        token_hash="contested",
+        expires_at=utc_now() + timedelta(days=1),
     )
 
     outcomes = await asyncio.gather(*(tokens.revoke("contested") for _ in range(8)))
@@ -246,7 +251,7 @@ async def test_revoking_all_sessions_only_touches_that_user(db: MongoDatabase) -
     ana, bia = ObjectId(), ObjectId()
     expires = utc_now() + timedelta(days=1)
     for name, user in (("a1", ana), ("a2", ana), ("b1", bia)):
-        await tokens.create(user_id=user, token_hash=name, expires_at=expires)
+        await tokens.create(user_id=user, family_id=ObjectId(), token_hash=name, expires_at=expires)
     await tokens.revoke("a1")
 
     assert await tokens.revoke_all_for_user(ana) == 1  # a1 was already revoked
@@ -262,9 +267,28 @@ async def test_naive_expiry_is_refused(db: MongoDatabase) -> None:
     with pytest.raises(ValueError, match="timezone-aware"):
         await RefreshTokenRepository(db).create(
             user_id=ObjectId(),
+            family_id=ObjectId(),
             token_hash="h",
             expires_at=datetime(2030, 1, 1),  # noqa: DTZ001 - deliberately naive
         )
+
+
+async def test_revoking_a_family_leaves_other_sessions_of_the_same_user_alone(
+    db: MongoDatabase,
+) -> None:
+    tokens = RefreshTokenRepository(db)
+    user, laptop, phone = ObjectId(), ObjectId(), ObjectId()
+    expires = utc_now() + timedelta(days=1)
+    for name, family in (("l1", laptop), ("l2", laptop), ("p1", phone)):
+        await tokens.create(user_id=user, family_id=family, token_hash=name, expires_at=expires)
+    await tokens.revoke("l1")
+
+    assert await tokens.revoke_family(laptop) == 1  # l1 was already revoked
+
+    survivor = await tokens.get_by_hash("p1")
+    assert survivor is not None
+    assert survivor.revoked_at is None
+    assert await tokens.revoke_family(ObjectId()) == 0
 
 
 # --- index retirement --------------------------------------------------------------------------

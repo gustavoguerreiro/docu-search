@@ -17,6 +17,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "JWT_SECRET_KEY",
         "JWT_ALGORITHM",
         "ACCESS_TOKEN_TTL_MINUTES",
+        "REFRESH_TOKEN_TTL_DAYS",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -196,3 +197,15 @@ def test_access_token_ttl_is_bounded(monkeypatch: pytest.MonkeyPatch, minutes: s
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_refresh_token_ttl_defaults_and_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings(_env_file=None).refresh_token_ttl_days == 14
+
+    for days in ("0", "91", "-1"):
+        monkeypatch.setenv("REFRESH_TOKEN_TTL_DAYS", days)
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None)
+
+    monkeypatch.setenv("REFRESH_TOKEN_TTL_DAYS", "30")
+    assert Settings(_env_file=None).refresh_token_ttl_days == 30

@@ -78,8 +78,10 @@ Sub-steps (one per session):
    access tokens with strict verification (`core/tokens.py`), JWT settings (`JWT_SECRET_KEY` required
    in production, random per process otherwise). ADR-0015. Mutation-checked: weakening audience,
    required-claims, algorithm or subject validation fails the tests.
-2. ⬜ Refresh tokens: opaque random token stored as a SHA-256 hash, rotation with reuse detection
-   (design decision to agree before coding), `REFRESH_TOKEN_TTL_DAYS`.
+2. ✅ Refresh tokens (`auth/refresh_tokens.py`, ADR-0016): opaque 256-bit token stored as SHA-256,
+   rotation per session family, reuse revokes the family, absolute session lifetime,
+   `REFRESH_TOKEN_TTL_DAYS`, `family_id` index. Verified against real MongoDB, incl. concurrent rotation
+   and 5 mutation checks. Chosen by default (option A) when the author did not pick; easy to relax.
 3. ⬜ Auth service + `POST /auth/register` and `POST /auth/login`: email normalization, no user
    enumeration (uniform responses, dummy-hash timing), password policy, consistent error body.
 4. ⬜ `POST /auth/refresh` and `POST /auth/logout` (revocation).

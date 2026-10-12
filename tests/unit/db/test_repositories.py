@@ -55,6 +55,7 @@ def test_models_map_the_mongo_id_and_hide_secrets_from_repr() -> None:
         {
             "_id": ObjectId(),
             "user_id": user_id,
+            "family_id": ObjectId(),
             "token_hash": "deadbeef-token-hash",
             "expires_at": NOW,
             "created_at": NOW,

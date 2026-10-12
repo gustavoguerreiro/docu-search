@@ -65,6 +65,7 @@ class NewChunk:
 
 class RefreshToken(_Record):
     user_id: ObjectId
+    family_id: ObjectId  # all tokens descending from one login share it
     token_hash: str = Field(repr=False)
     expires_at: datetime
     created_at: datetime

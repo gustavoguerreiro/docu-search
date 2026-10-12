@@ -22,7 +22,8 @@ What exists and works today:
   readiness checks
 - Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
   tested against a real MongoDB; not yet exposed through the API
-- Authentication primitives (Argon2id password hashing, JWT access tokens); no auth endpoints yet
+- Authentication primitives (Argon2id password hashing, JWT access tokens, rotating refresh tokens
+  with reuse detection); no auth endpoints yet
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
 
@@ -105,6 +106,7 @@ for later milestones and is ignored until then.
 | `JWT_SECRET_KEY` | random per process | ≥ 32 characters; **required when `APP_ENV=production`**, never committed. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `JWT_ALGORITHM` | `HS256` | only `HS256` is accepted |
 | `ACCESS_TOKEN_TTL_MINUTES` | `15` | 1–60 |
+| `REFRESH_TOKEN_TTL_DAYS` | `14` | 1–90; a session ends this long after login (refreshing does not extend it) |
 
 Logs are one JSON object per line on stdout. Values under keys that look sensitive (password,
 token, secret, authorization, ...) are redacted.

@@ -9,18 +9,20 @@ from docusearch.db.mongo import MongoDatabase
 
 
 class RefreshTokenRepository:
-    """Stores only token hashes. Expiry checks and rotation policy belong to the auth service."""
+    """Stores only token hashes. Expiry checks and rotation policy belong to
+    `docusearch.auth.refresh_tokens`."""
 
     def __init__(self, db: MongoDatabase) -> None:
         self._tokens = db[collections.REFRESH_TOKENS]
 
     async def create(
-        self, *, user_id: ObjectId, token_hash: str, expires_at: datetime
+        self, *, user_id: ObjectId, family_id: ObjectId, token_hash: str, expires_at: datetime
     ) -> RefreshToken:
         if expires_at.tzinfo is None:
             raise ValueError("expires_at must be timezone-aware")
         document = {
             "user_id": user_id,
+            "family_id": family_id,
             "token_hash": token_hash,
             "expires_at": expires_at,
             "created_at": utc_now(),
@@ -41,6 +43,14 @@ class RefreshTokenRepository:
             {"$set": {"revoked_at": utc_now()}},
         )
         return result.modified_count == 1
+
+    async def revoke_family(self, family_id: ObjectId) -> int:
+        """Revoke every live token of one session. Returns how many were revoked."""
+        result = await self._tokens.update_many(
+            {"family_id": family_id, "revoked_at": None},
+            {"$set": {"revoked_at": utc_now()}},
+        )
+        return result.modified_count
 
     async def revoke_all_for_user(self, user_id: ObjectId) -> int:
         result = await self._tokens.update_many(

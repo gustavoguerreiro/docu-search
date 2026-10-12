@@ -81,7 +81,7 @@ implemented** (`src/docusearch/db/indexes.py`, rationale in ADR-0013).
 | `users` | account, normalized email, password hash | `email` unique |
 | `documents` | metadata, owner, status, `sha256`, timestamps | `(owner_id, created_at desc, _id desc)`; `(owner_id, sha256)` unique; `(status, updated_at)` |
 | `chunks` | extracted text pieces of one document | `(document_id, chunk_index)` unique |
-| `refresh_tokens` | hashed refresh tokens (sessions) | `token_hash` unique; `expires_at` TTL; `user_id` |
+| `refresh_tokens` | hashed refresh tokens (sessions) | `token_hash` unique; `expires_at` TTL; `user_id`; `family_id` |
 
 Data access goes through one small repository class per collection (`src/docusearch/db/repositories/`,
 ADR-0014); ownership is part of every document/chunk query. The text index used by search is added in
