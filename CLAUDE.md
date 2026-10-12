@@ -54,6 +54,10 @@ Add a dependency with `uv add <pkg>==<version>` (or `--group dev`) and commit th
 ```
 make install       # uv sync --locked
 make run           # uvicorn docusearch.main:create_app --factory --reload (127.0.0.1:8000)
+make up            # docker compose up -d --build --wait (api + mongo + redis)
+make down          # stop the stack; volumes are kept (never use `down -v` without asking)
+make logs          # follow stack logs
+make health        # curl live/ready on the running stack (127.0.0.1:8000)
 make test          # pytest (unit, with coverage); integration tests are marked `integration`
 make lint          # ruff check
 make format        # ruff format   (make format-check to verify only)
@@ -70,4 +74,5 @@ Config: add fields to `core/settings.py` (`Settings`) and mirror them in `.env.e
 build `Settings(_env_file=None)` so a developer's local `.env` never leaks in.
 Logging: `core/logging_setup.py`; pass context via `extra=`, never inside the message string
 (redaction is key-based).
-Stack run targets (`up`, `down`, `logs`, `health`) are added with Docker Compose.
+Docker: one `Dockerfile` (non-root, pinned bases) for API and worker; `docker-compose.yml` publishes only
+the API on 127.0.0.1:8000. Mongo/Redis have no host ports. Pin new image tags exactly.

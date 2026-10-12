@@ -132,3 +132,33 @@ checks) and mypy `--strict` are configured in `pyproject.toml`.
 **Consequences:** One tool and one lockfile; fast, reproducible installs. Contributors need `uv`
 installed. Exact pins mean dependency upgrades are deliberate commits (`uv lock --upgrade-package`).
 Versions were taken from PyPI on 2026-10-09 and resolved successfully on CPython 3.13.13.
+
+---
+
+## ADR-0009 — Container image and local Compose stack
+
+**Status:** Accepted (Milestone 1)
+
+**Context:** The API and the future worker must run from one reproducible image, and the local stack
+must be safe by default without credentials.
+
+**Decision:**
+- Multi-stage `Dockerfile`: a builder installs locked, non-dev dependencies with uv into a venv; the
+  runtime stage copies only that venv, runs as non-root (uid 10001) and has no tests, docs or `.env`
+  (excluded by `.dockerignore`, and never copied by the Dockerfile). The command is `CMD` only, so the
+  worker reuses the image with a different command.
+- Base images and tools are pinned to exact tags: `python:3.13.16-slim-bookworm`, uv `0.11.20`,
+  `mongo:8.0.32` (the stable 8.0 line, which Atlas also offers; 8.3 is a rapid-release line),
+  `redis:7.4.11-bookworm` (closer to what managed AWS Redis offers than Redis 8). Tags are not
+  digest-pinned; digests would be stricter but costlier to maintain.
+- Compose publishes only the API, on `127.0.0.1`. MongoDB and Redis have no host ports. MongoDB runs
+  **without authentication**, acceptable only because of that isolation; enable auth before ever
+  publishing its port. Redis uses AOF so queued jobs survive restarts.
+- The `api` container runs with a read-only root filesystem, a tmpfs `/tmp`, all capabilities dropped
+  and `no-new-privileges`.
+- `make down` never removes volumes. There is deliberately no `depends_on` yet because the API does not
+  use MongoDB or Redis; readiness (not startup order) will gate on them.
+
+**Consequences:** Reproducible, small (~218 MB) image. Host-side tools cannot reach Mongo/Redis without
+an explicit override; Milestone 2 decides how integration tests reach MongoDB. Uvicorn's first two
+startup lines predate the app's logging setup and stay plain text.

@@ -36,7 +36,7 @@ Suggested sub-steps (one per session):
 1. ✅ Python project config (`pyproject.toml`), pinned dependencies, Ruff + mypy config, Makefile skeleton. (ADR-0008; `make check` passes locally. Not yet exercised in CI or Docker.)
 2. ✅ Pydantic Settings (`APP_ENV`, `LOG_LEVEL` only; later milestones add their fields) + structured JSON logging with key-based secret redaction. Wiring into the app/uvicorn happens in step 3.
 3. ✅ FastAPI app factory (`create_app`, run with `uvicorn --factory`) + `/api/v1/health/live` and `/ready` + unit tests. Readiness runs the checks registered on `app.state.readiness_checks`; none are registered until Mongo/Redis exist. uvicorn's own loggers are routed to the JSON formatter once the lifespan starts (its two earliest startup lines stay plain text).
-4. ⬜ Dockerfile + Docker Compose (MongoDB, Redis) with pinned images.
+4. ✅ Dockerfile (multi-stage, non-root, one image for API and later worker) + Docker Compose with `api`, MongoDB 8.0 and Redis 7.4 (pinned, health-checked, named volumes, no host ports for Mongo/Redis). ADR-0009. Verified locally with Docker only; CI build comes in step 5. The worker service is added in Milestone 5.
 5. ⬜ GitHub Actions CI (lint, types, tests).
 6. ⬜ README getting-started verified end to end.
 
