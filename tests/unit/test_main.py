@@ -52,9 +52,14 @@ async def test_lifespan_logs_start_and_stop(capsys: pytest.CaptureFixture[str]) 
         pass
 
     entries = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert [e["message"] for e in entries] == ["application started", "application stopped"]
-    assert entries[0]["version"] == __version__
-    assert entries[0]["app_env"] == "local"
+    assert [e["message"] for e in entries] == [
+        "mongodb indexes ensured",
+        "application started",
+        "application stopped",
+    ]
+    started = entries[1]
+    assert started["version"] == __version__
+    assert started["app_env"] == "local"
 
 
 class SpyMongoClient:
@@ -74,10 +79,20 @@ class SpyMongoClient:
         self.closed = True
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def spy_client(monkeypatch: pytest.MonkeyPatch) -> SpyMongoClient:
+    """Unit tests of the app never create a real client or touch a database."""
     spy = SpyMongoClient()
     monkeypatch.setattr("docusearch.main.create_client", lambda settings: spy)
+
+    async def no_indexes(db: object) -> None:
+        return None
+
+    async def no_problems(db: object) -> list[str]:
+        return []
+
+    monkeypatch.setattr("docusearch.db.indexes.ensure_indexes", no_indexes)
+    monkeypatch.setattr("docusearch.db.indexes.verify_indexes", no_problems)
     return spy
 
 
@@ -112,3 +127,26 @@ async def test_lifespan_registers_a_working_mongodb_readiness_check(
         assert await check() is True
 
     assert spy_client.pings == 1
+
+
+async def test_lifespan_registers_the_indexes_readiness_check(spy_client: SpyMongoClient) -> None:
+    app = create_app(Settings(_env_file=None))
+
+    async with app.router.lifespan_context(app):
+        assert set(app.state.readiness_checks) == {"mongodb", "indexes"}
+        assert await app.state.readiness_checks["indexes"]() is True
+
+
+async def test_app_starts_and_reports_unready_when_indexes_cannot_be_created(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pymongo.errors import ServerSelectionTimeoutError
+
+    async def database_down(db: object) -> None:
+        raise ServerSelectionTimeoutError("down")
+
+    monkeypatch.setattr("docusearch.db.indexes.ensure_indexes", database_down)
+    app = create_app(Settings(_env_file=None))
+
+    async with app.router.lifespan_context(app):  # must not raise
+        assert await app.state.readiness_checks["indexes"]() is False

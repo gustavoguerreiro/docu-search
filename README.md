@@ -18,8 +18,8 @@ What exists and works today:
 
 - FastAPI application with liveness and readiness endpoints under `/api/v1`
 - Configuration from environment variables, structured JSON logging
-- MongoDB client managed by the application lifecycle, with a real readiness check
-  (no collections or indexes yet)
+- MongoDB client managed by the application lifecycle, required indexes created at startup, and real
+  readiness checks (no data access code or API features yet)
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
 
@@ -110,9 +110,10 @@ token, secret, authorization, ...) are redacted.
 | GET | `/api/v1/health/live` | Liveness: `200` while the process is up; does not check dependencies |
 | GET | `/api/v1/health/ready` | Readiness: `200` when all dependency checks pass, otherwise `503` |
 
-`/ready` runs one check today, `mongodb` (a `ping` bounded by `MONGODB_TIMEOUT_MS`):
-`{"status":"ok","checks":{"mongodb":"ok"}}`, or `503` with `"mongodb":"fail"`. The body never contains
-error details. Redis is added to the checks when it is first used (Milestone 5).
+`/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`) and
+`indexes` (the required MongoDB indexes exist; created at startup, retried until they do):
+`{"status":"ok","checks":{"mongodb":"ok","indexes":"ok"}}`, or `503` with `"fail"` for what is wrong.
+The body never contains error details. Redis is added when it is first used (Milestone 5).
 
 ## Developer commands
 

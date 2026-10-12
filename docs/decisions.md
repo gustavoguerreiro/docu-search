@@ -232,3 +232,34 @@ exposing the dev database or sharing its data.
 **Consequences:** Dev data is never touched by tests, and tests are isolated from each other. Running
 them needs Docker. Alternatives considered: publishing the dev Mongo port (shares data, weakens the
 no-host-port rule) and running tests inside a container (slower local loop).
+
+---
+
+## ADR-0013 — Indexes derived from access patterns, created at startup
+
+**Status:** Accepted (Milestone 2)
+
+**Context:** Required indexes must be created and verified, and each must serve a known query.
+
+**Decision:**
+- Indexes are declared once in `db/indexes.py` with explicit names. Each exists for a documented access
+  pattern: login lookup (`users.email` unique), document listing (`owner_id, created_at`), per-user
+  duplicate detection (`owner_id, sha256` unique, race-free under concurrent uploads), reconciliation of
+  stuck documents (`status, updated_at`), ordered chunk reads and idempotent reprocessing
+  (`document_id, chunk_index` unique), refresh-token lookup (`token_hash` unique), expiry cleanup (TTL on
+  `expires_at`) and revoking a user's sessions (`user_id`).
+- `ensure_indexes` is idempotent; an index with the same name but different options fails loudly instead
+  of being replaced (that needs a migration). `verify_indexes` independently reports missing or drifted
+  indexes.
+- The API creates indexes at startup. If MongoDB is down then, it still starts, and the `indexes`
+  readiness check retries until it succeeds (consistent with ADR-0011).
+- Readiness checks run concurrently, so a probe costs the slowest check, not their sum (4.3 s -> 2.0 s
+  measured with MongoDB down).
+- Search text indexes are deferred to the search milestone, when visibility of partially processed
+  documents is designed.
+
+**Consequences:** Uniqueness is enforced by the database, not by check-then-insert code. Every index adds
+write cost, so new ones need a stated query. Unique indexes fail to build if duplicate data already
+exists. Between startup and the first successful setup, uniqueness is not enforced; readiness reports
+that, but a deployment that ignores readiness could write duplicates. Multiple processes creating the
+same indexes concurrently is safe.

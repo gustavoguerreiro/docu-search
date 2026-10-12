@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 
 import httpx
 import pytest
@@ -110,3 +112,24 @@ async def test_openapi_documents_health_endpoints(app: FastAPI) -> None:
     assert "/api/v1/health/live" in schema["paths"]
     assert {"200", "503"} <= set(ready["responses"])
     assert ready["tags"] == ["health"]
+
+
+async def test_ready_runs_checks_concurrently_and_keeps_all_results(app: FastAPI) -> None:
+    async def slow_ok() -> bool:
+        await asyncio.sleep(0.3)
+        return True
+
+    async def slow_fail() -> bool:
+        await asyncio.sleep(0.3)
+        return False
+
+    app.state.readiness_checks = {"a": slow_ok, "b": slow_fail, "c": slow_ok}
+
+    async with client_for(app) as client:
+        started = time.perf_counter()
+        response = await client.get("/api/v1/health/ready")
+        elapsed = time.perf_counter() - started
+
+    assert response.status_code == 503
+    assert response.json()["checks"] == {"a": "ok", "b": "fail", "c": "ok"}
+    assert elapsed < 0.8  # sequential execution would take ~0.9s

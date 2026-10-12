@@ -56,8 +56,7 @@ Sub-steps (one per session):
    `integration` CI job. First tests: ping, UTC-aware round trip, client closed by the lifespan, `/ready`
    200/503 through the real lifecycle. Verified locally; the new CI job has not run on GitHub yet.
 3. ✅ `core.clock.utc_now()` (aware UTC, millisecond-truncated so values survive a MongoDB round trip unchanged) and `db.ids` (`parse_object_id`, `object_id_to_str`, `InvalidIdError`, pydantic `ObjectIdStr` → 422 on malformed ids). Unit + integration tests. Policy for unknown-vs-malformed ids (404 vs 422) is decided with the document endpoints.
-4. ⬜ Collection/index initialization (`users`, `documents`, `chunks`, `refresh_tokens`) with index
-   verification, run at startup.
+4. ✅ Index definitions, idempotent `ensure_indexes`, `verify_indexes`, and `IndexInitializer` run at startup (ADR-0013). Collections are created implicitly by index creation. `/ready` gains an `indexes` check that retries, so a process started while MongoDB was down repairs itself; readiness checks now run concurrently. Verified against a real MongoDB incl. query plans (`explain`). Text index deferred to Milestone 6.
 5. ⬜ Minimal repository modules for the initial collections.
 
 Acceptance: connections opened and closed correctly; required indexes created and verified;

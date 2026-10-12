@@ -71,6 +71,21 @@ infra/          # terraform/, scripts/ (prepared only, never applied)
 Dependency direction: `api` and `worker` depend on domain/service code; services depend on
 `db`, `storage`; nothing depends on `api` or `worker`.
 
+## 4b. Data model and indexes
+
+Four collections. Field lists are indicative until their milestones; the **indexes below are
+implemented** (`src/docusearch/db/indexes.py`, rationale in ADR-0013).
+
+| Collection | Holds | Indexes |
+|---|---|---|
+| `users` | account, normalized email, password hash | `email` unique |
+| `documents` | metadata, owner, status, `sha256`, timestamps | `(owner_id, created_at desc)`; `(owner_id, sha256)` unique; `(status, updated_at)` |
+| `chunks` | extracted text pieces of one document | `(document_id, chunk_index)` unique |
+| `refresh_tokens` | hashed refresh tokens (sessions) | `token_hash` unique; `expires_at` TTL; `user_id` |
+
+The text index used by search is added in Milestone 6. Indexes are created idempotently at startup; if
+MongoDB is unavailable then, the process still starts and the `indexes` readiness check retries.
+
 ## 5. Document lifecycle
 
 States: `pending → processing → completed | failed`.

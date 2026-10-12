@@ -14,6 +14,7 @@ from docusearch import __version__
 from docusearch.api import health
 from docusearch.core.logging_setup import configure_logging
 from docusearch.core.settings import Settings, get_settings
+from docusearch.db.indexes import IndexInitializer
 from docusearch.db.mongo import create_client, get_database, ping
 
 API_PREFIX = "/api/v1"
@@ -34,6 +35,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.readiness_checks["mongodb"] = partial(
         ping, mongo_client, timeout_seconds=settings.mongodb_timeout_ms / 1000 + 1
     )
+
+    # Try once now so constraints exist before the first request. If MongoDB is down the app still
+    # starts; the `indexes` readiness check keeps retrying and reports not-ready until it succeeds.
+    index_initializer = IndexInitializer(app.state.mongo_db)
+    await index_initializer.ensure()
+    app.state.readiness_checks["indexes"] = index_initializer.ensure
 
     logger.info(
         "application started",

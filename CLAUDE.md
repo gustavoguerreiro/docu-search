@@ -77,6 +77,9 @@ Never create clients at import time. The URI is a `SecretStr`: log only the db n
 Integration tests: put them in `tests/integration/` (auto-marked `integration`); use the `mongo_client` /
 `mongo_db` / `mongo_settings` fixtures, which give every test its own `docusearch_test_*` database and drop it.
 Never point them at a non-test database. Unreachable MongoDB must fail, not skip.
+Indexes: defined only in `db/indexes.py` (`INDEXES`), each with an explicit name and a comment naming the
+access pattern. Adding or changing one = edit there + an `explain()` test in `tests/integration/test_indexes.py`.
+Changing an existing index's options needs a migration (startup fails loudly on conflict, by design).
 Time/ids: use `core.clock.utc_now()` for every timestamp (never `datetime.now()`/`utcnow()`; ruff DTZ enforces
 it). Convert ids only via `db.ids` (`parse_object_id`, `ObjectIdStr` for API params); never `ObjectId(x)` on
 client input.

@@ -7,6 +7,7 @@
   yet; MongoDB and Redis register theirs in later milestones.
 """
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Literal
@@ -56,17 +57,21 @@ async def live() -> LiveResponse:
 )
 async def ready(request: Request, response: Response) -> ReadyResponse:
     checks: Mapping[str, ReadinessCheck] = request.app.state.readiness_checks
-    results: dict[str, Literal["ok", "fail"]] = {}
-    for name, check in checks.items():
-        try:
-            healthy = await check()
-        except Exception:
-            # A crashing check means "not ready"; it must not turn the probe into a 500.
-            logger.warning("readiness check raised", extra={"check": name}, exc_info=True)
-            healthy = False
-        results[name] = "ok" if healthy else "fail"
+    # Checks are independent, so run them concurrently: the probe takes as long as the slowest one.
+    outcomes = await asyncio.gather(*(_run_check(name, check) for name, check in checks.items()))
+    results = dict(outcomes)
 
     if "fail" in results.values():
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadyResponse(status="unavailable", checks=results)
     return ReadyResponse(status="ok", checks=results)
+
+
+async def _run_check(name: str, check: ReadinessCheck) -> tuple[str, Literal["ok", "fail"]]:
+    try:
+        healthy = await check()
+    except Exception:
+        # A crashing check means "not ready"; it must not turn the probe into a 500.
+        logger.warning("readiness check raised", extra={"check": name}, exc_info=True)
+        healthy = False
+    return name, "ok" if healthy else "fail"

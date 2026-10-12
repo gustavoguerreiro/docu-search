@@ -54,7 +54,7 @@ async def test_app_reports_ready_and_releases_the_client(mongo_settings: Setting
         client: MongoClient = app.state.mongo_client
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "checks": {"mongodb": "ok"}}
+    assert response.json() == {"status": "ok", "checks": {"mongodb": "ok", "indexes": "ok"}}
     with pytest.raises(InvalidOperation):
         await client.admin.command("ping")
 
@@ -74,5 +74,19 @@ async def test_app_reports_unavailable_when_mongodb_is_unreachable(
             live = await http.get("/api/v1/health/live")
 
     assert ready.status_code == 503
-    assert ready.json() == {"status": "unavailable", "checks": {"mongodb": "fail"}}
+    assert ready.json() == {
+        "status": "unavailable",
+        "checks": {"mongodb": "fail", "indexes": "fail"},
+    }
     assert live.status_code == 200
+
+
+async def test_startup_creates_the_indexes_in_the_configured_database(
+    mongo_settings: Settings, mongo_db: MongoDatabase
+) -> None:
+    app = create_app(mongo_settings)
+
+    async with app.router.lifespan_context(app):
+        users = await mongo_db["users"].index_information()
+
+    assert "email_unique" in users
