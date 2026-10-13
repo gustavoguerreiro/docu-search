@@ -52,6 +52,11 @@ class DocumentRepository:
         found = await self._documents.find_one({"_id": document_id, "owner_id": owner_id})
         return Document.model_validate(found) if found else None
 
+    async def find_by_sha256(self, owner_id: ObjectId, sha256: str) -> Document | None:
+        """The owner's document with this content hash, if any (duplicate detection)."""
+        found = await self._documents.find_one({"owner_id": owner_id, "sha256": sha256})
+        return Document.model_validate(found) if found else None
+
     async def list_by_owner(
         self, owner_id: ObjectId, *, limit: int = 20, offset: int = 0
     ) -> list[Document]:

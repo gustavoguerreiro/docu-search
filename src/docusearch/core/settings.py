@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # Only the local filesystem is implemented; "s3" is added when the AWS milestone needs it.
     storage_backend: Literal["local"] = "local"
     storage_local_root: Path = Path("data/uploads")
+    # Largest accepted upload. Enforced while streaming and again at the HTTP layer.
+    max_upload_size_mb: int = Field(default=25, ge=1, le=100)
 
     @field_validator("log_level", mode="before")
     @classmethod

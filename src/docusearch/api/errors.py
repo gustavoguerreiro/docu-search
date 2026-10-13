@@ -80,6 +80,11 @@ def _response(
     return JSONResponse({"error": error}, status_code=status_code, headers=headers)
 
 
+def error_response(status_code: int, code: str, message: str) -> JSONResponse:
+    """The common error body as a response, for code that runs outside a route (middleware)."""
+    return _response(status_code, code, message)
+
+
 async def _api_error(_: Request, exc: Exception) -> JSONResponse:
     error = cast(ApiError, exc)
     return _response(error.status_code, error.code, error.message, headers=error.headers)

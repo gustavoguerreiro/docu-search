@@ -518,3 +518,35 @@ corrupt PDF is accepted and fails later at extraction, which is reported as a fa
 Without a size guard at the HTTP layer the framework would buffer a whole request before intake sees
 it; that guard is part of the next step.
 
+---
+
+## ADR-0022 — Upload endpoint: size guard at the edge, ordered steps, compensation
+
+**Status:** Accepted (Milestone 4)
+
+**Context:** Multipart parsing in the framework copies the whole request to a temporary file before a
+route can look at it, so a limit enforced only inside the route would let an oversized body be fully
+received first. Files and database records live in separate systems with no shared transaction.
+
+**Decision:**
+- A pure ASGI middleware enforces body size before the application reads anything. It refuses on a
+  declared `Content-Length` over the limit without reading a byte, and for bodies without one counts
+  bytes and aborts at the limit. The upload route may carry `MAX_UPLOAD_SIZE_MB` plus 64 KiB of multipart
+  framing; every other route is capped at 1 MiB. Intake then enforces the exact file limit.
+- `POST /api/v1/documents` answers `202 Accepted` with the document in state `pending`. Processing arrives
+  in Milestone 5; until then documents remain `pending`. Choosing `202` now avoids changing the contract
+  later.
+- Order: validate and hash, refuse a duplicate (same owner, same content hash) before touching storage,
+  store the file under a new key, create the record. If creating the record fails, including by losing a
+  race on the unique `(owner_id, sha256)` index, the stored file is removed and the original error (or a
+  `409` pointing at the winner) is reported. A failed cleanup is logged and never masks the cause.
+- Status mapping: `413` too large, `415` unsupported content, `400` empty, `409` duplicate (with a
+  `Location` header for the existing document, which the caller owns), `503` file store unavailable with no
+  paths or driver text in the body.
+- The owner is the authenticated user only; the response never contains the storage key or any path.
+
+**Consequences:** A crash between storing the file and creating the record leaves an unreferenced file
+(never a record without a file); reconciliation in Milestone 5 removes such orphans. Concurrency is safe
+but a burst of identical uploads each spends a temporary copy before the duplicate is detected. Until the
+rate limiting of Milestone 7 exists, authenticated users can upload repeatedly up to the size limit.
+

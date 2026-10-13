@@ -113,7 +113,10 @@ Sub-steps (one commit each):
 2. ✅ Upload validation (`documents/`, ADR-0021): content-based type detection (PDF / DOCX / UTF-8
    TXT), filename sanitization, streaming intake with size limit and SHA-256. Pure functions, no
    endpoint yet. 70 unit tests; 12 mutations of the rules all caught.
-3. ⬜ Request-size guard and `POST /documents` (duplicate detection, compensation on failure).
+3. ✅ Request-size guard (`api/limits.py`) and `POST /api/v1/documents` (`202`, duplicate detection with
+   `409` + `Location`, file removed if the record cannot be created). ADR-0022. Verified end to end
+   against the Docker stack (oversized upload rejected in milliseconds with 0 bytes read) and 8
+   mutations caught.
 4. ⬜ `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`; cross-user API tests;
    persistence across container recreation.
 

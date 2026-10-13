@@ -81,6 +81,10 @@ Auth primitives: `core/passwords.py` (async Argon2id; never hash on the event lo
 (HS256 access tokens; one `InvalidTokenError` for callers). Never log tokens, hashes or the key; never
 add algorithms to `decode`'s list. `JWT_SECRET_KEY` is required in production and random per process
 otherwise. Unit tests in `tests/unit/core/test_tokens.py` are security-relevant: don't loosen them.
+Upload endpoint: `DocumentService.upload` orders validate -> duplicate check -> store -> record, and removes
+the stored file if the record fails. `RequestSizeLimitMiddleware` (`api/limits.py`) must stay outermost so no
+body is spooled before the limit applies; non-upload routes are capped at 1 MiB. Responses never include
+`storage_key` or paths (`DocumentResponse`). Covered by `tests/integration/test_documents_upload.py`.
 Uploads: the type of a file comes only from its bytes (`documents/filetypes.py`); the client's file name and
 Content-Type are never inputs to a decision, and the sanitized name is display-only. Intake
 (`documents/intake.py`) enforces the size limit while streaming and hashes before anything is stored.

@@ -11,19 +11,20 @@ from functools import partial
 from fastapi import FastAPI
 
 from docusearch import __version__
-from docusearch.api import auth, health
+from docusearch.api import API_PREFIX, auth, documents, health
 from docusearch.api.errors import install_error_handlers
+from docusearch.api.limits import RequestSizeLimitMiddleware
 from docusearch.auth.refresh_tokens import RefreshTokenService
 from docusearch.auth.service import AuthService
 from docusearch.core.logging_setup import configure_logging
 from docusearch.core.settings import Settings, get_settings
 from docusearch.db.indexes import IndexInitializer
 from docusearch.db.mongo import create_client, get_database, ping
+from docusearch.db.repositories.documents import DocumentRepository
 from docusearch.db.repositories.refresh_tokens import RefreshTokenRepository
 from docusearch.db.repositories.users import UserRepository
+from docusearch.documents.service import DocumentService
 from docusearch.storage.local import LocalStorage
-
-API_PREFIX = "/api/v1"
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     storage = LocalStorage(settings.storage_local_root)
     app.state.storage = storage
     app.state.readiness_checks["storage"] = storage.healthy
+
+    app.state.document_service = DocumentService(
+        DocumentRepository(app.state.mongo_db),
+        storage,
+        max_upload_bytes=settings.max_upload_size_mb * 1024 * 1024,
+    )
 
     refresh_tokens = RefreshTokenService(RefreshTokenRepository(app.state.mongo_db), settings)
     app.state.auth_service = AuthService(
@@ -86,6 +93,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.readiness_checks = {}
 
     install_error_handlers(app)
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
+        upload_path=f"{API_PREFIX}/documents",
+        max_upload_bytes=settings.max_upload_size_mb * 1024 * 1024,
+    )
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(auth.router, prefix=API_PREFIX)
+    app.include_router(documents.router, prefix=API_PREFIX)
     return app

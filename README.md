@@ -110,6 +110,7 @@ for later milestones and is ignored until then.
 | `ACCESS_TOKEN_TTL_MINUTES` | `15` | 1–60 |
 | `REFRESH_TOKEN_TTL_DAYS` | `14` | 1–90; a session ends this long after login (refreshing does not extend it) |
 | `STORAGE_BACKEND` | `local` | only `local` exists |
+| `MAX_UPLOAD_SIZE_MB` | `25` | 1–100; largest accepted upload. Enforced at the HTTP layer before the body is read and again while streaming |
 | `STORAGE_LOCAL_ROOT` | `data/uploads` | where uploaded files are kept. Compose sets `/data/uploads`, backed by the `docusearch_uploads_data` volume |
 
 Logs are one JSON object per line on stdout. Values under keys that look sensitive (password,
@@ -126,6 +127,7 @@ token, secret, authorization, ...) are redacted.
 | POST | `/api/v1/auth/refresh` | Body `{"refresh_token"}`. Returns a new token pair; the sent token stops working. Reusing a spent token ends the whole session |
 | POST | `/api/v1/auth/logout` | Body `{"refresh_token"}`. Ends the session; always `204` |
 | GET | `/api/v1/auth/me` | The authenticated account (`Authorization: Bearer <access_token>`). `401` codes: `not_authenticated`, `token_expired`, `invalid_token` |
+| POST | `/api/v1/documents` | Multipart field `file` (PDF, DOCX or UTF-8 text, up to `MAX_UPLOAD_SIZE_MB`). `202` with the document (`pending`); `409` + `Location` if you already uploaded the same content; `413`, `415`, `400` for rejected files. The type is decided from the content, not the file name |
 
 `/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`), `storage`
 (the uploads directory is writable) and `indexes` (the required MongoDB indexes exist; created at startup,
