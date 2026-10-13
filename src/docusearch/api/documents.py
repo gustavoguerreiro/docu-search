@@ -4,13 +4,13 @@ import logging
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile, status
+from pydantic import BaseModel, Field
 
 from docusearch.api import API_PREFIX
 from docusearch.api.dependencies import CurrentUser
 from docusearch.api.errors import ApiError, ErrorResponse
-from docusearch.db.ids import ObjectIdStr
+from docusearch.db.ids import ObjectIdStr, parse_object_id
 from docusearch.db.models import Document, DocumentStatus
 from docusearch.documents.intake import (
     EmptyUploadError,
@@ -44,6 +44,13 @@ class DocumentResponse(BaseModel):
     status: DocumentStatus
     created_at: datetime
     updated_at: datetime
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentResponse]
+    total: int = Field(description="All of the caller's documents, regardless of the page.")
+    limit: int
+    offset: int
 
 
 def to_response(document: Document) -> DocumentResponse:
@@ -128,3 +135,75 @@ async def upload_document(
             "The file could not be stored. Try again later.",
         ) from exc
     return to_response(document)
+
+
+def _not_found() -> ApiError:
+    # One shape and one message for "does not exist" and "belongs to someone else".
+    return ApiError(status.HTTP_404_NOT_FOUND, "document_not_found", "Document not found.")
+
+
+@router.get(
+    "",
+    summary="List my documents",
+    description="The caller's documents, newest first. Other users' documents are never included.",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse, "description": "Not authenticated."}
+    },
+)
+async def list_documents(
+    user: CurrentUser,
+    service: DocumentServiceDep,
+    response: Response,
+    limit: Annotated[int, Query(ge=1, le=100, description="Page size.")] = 20,
+    offset: Annotated[int, Query(ge=0, le=1_000_000, description="Documents to skip.")] = 0,
+) -> DocumentListResponse:
+    response.headers["Cache-Control"] = "no-store"
+    documents, total = await service.list(user.id, limit=limit, offset=offset)
+    return DocumentListResponse(
+        items=[to_response(d) for d in documents], total=total, limit=limit, offset=offset
+    )
+
+
+@router.get(
+    "/{document_id}",
+    summary="Get a document",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse, "description": "Not authenticated."},
+        status.HTTP_404_NOT_FOUND: {
+            "model": ErrorResponse,
+            "description": "No such document, or it belongs to another user (indistinguishable).",
+        },
+    },
+)
+async def get_document(
+    document_id: ObjectIdStr, user: CurrentUser, service: DocumentServiceDep, response: Response
+) -> DocumentResponse:
+    response.headers["Cache-Control"] = "no-store"
+    document = await service.get(user.id, parse_object_id(document_id))
+    if document is None:
+        raise _not_found()
+    return to_response(document)
+
+
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a document",
+    description=(
+        "Deletes the document, its extracted text and its stored file. The content hash becomes "
+        "free again, so the same file can be uploaded afterwards."
+    ),
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"model": ErrorResponse, "description": "Not authenticated."},
+        status.HTTP_404_NOT_FOUND: {
+            "model": ErrorResponse,
+            "description": "No such document, or it belongs to another user (indistinguishable).",
+        },
+    },
+)
+async def delete_document(
+    document_id: ObjectIdStr, user: CurrentUser, service: DocumentServiceDep
+) -> Response:
+    if not await service.delete(user.id, parse_object_id(document_id)):
+        raise _not_found()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

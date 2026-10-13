@@ -550,3 +550,31 @@ received first. Files and database records live in separate systems with no shar
 but a burst of identical uploads each spends a temporary copy before the duplicate is detected. Until the
 rate limiting of Milestone 7 exists, authenticated users can upload repeatedly up to the size limit.
 
+---
+
+## ADR-0023 — Reading and deleting documents: id errors, not-found and cleanup order
+
+**Status:** Accepted (Milestone 4). Settles the question left open in Milestone 2 (404 vs 422 for ids).
+
+**Context:** Document routes take an id from the path. The API must neither reveal whether someone else's
+document exists nor leave data behind when a document is deleted.
+
+**Decision:**
+- A **malformed** id (not 24 hexadecimal characters) is `422 validation_error`: it is a client mistake,
+  reveals nothing about stored data, and distinguishing it keeps client bugs visible.
+- A **well-formed** id that does not exist and one that belongs to another user produce the same
+  `404 document_not_found` with the same body, from a single code path. The test suite pins the exact body
+  so wording cannot drift into a difference.
+- Listing is `limit` (1-100, default 20) and `offset` (>= 0), newest first, with the owner's `total`. The
+  owner is always the authenticated user; owner-like query parameters and headers are ignored (tested).
+- Deletion removes the database record first, then the chunks, then the stored file. The record is the
+  source of truth, so once it is gone the document is gone for the user even if a later cleanup step fails;
+  failures there are logged and left for reconciliation, and the call still returns `204`. Two concurrent
+  deletes yield exactly one `204` and `404` for the rest.
+- Deleting frees the content hash, so the same file can be uploaded again.
+
+**Consequences:** A failed chunk or file cleanup leaves unreferenced data (never a visible document) until
+reconciliation exists in Milestone 5. A `204` therefore means "the document is deleted", not "every byte is
+gone". Offset pagination can skip or repeat items if documents are added between pages; acceptable for
+per-user lists (ADR-0014).
+

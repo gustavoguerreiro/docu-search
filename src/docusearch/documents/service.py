@@ -17,6 +17,7 @@ import logging
 from bson import ObjectId
 
 from docusearch.db.models import Document
+from docusearch.db.repositories.chunks import ChunkRepository
 from docusearch.db.repositories.documents import DocumentRepository, DuplicateDocumentError
 from docusearch.documents.filenames import sanitize_filename
 from docusearch.documents.intake import AsyncReader, receive_upload
@@ -35,11 +36,49 @@ class DocumentAlreadyExistsError(Exception):
 
 class DocumentService:
     def __init__(
-        self, documents: DocumentRepository, storage: Storage, *, max_upload_bytes: int
+        self,
+        documents: DocumentRepository,
+        chunks: ChunkRepository,
+        storage: Storage,
+        *,
+        max_upload_bytes: int,
     ) -> None:
         self._documents = documents
+        self._chunks = chunks
         self._storage = storage
         self._max_upload_bytes = max_upload_bytes
+
+    async def get(self, owner_id: ObjectId, document_id: ObjectId) -> Document | None:
+        """The owner's document, or None. Another user's document is None too."""
+        return await self._documents.get(owner_id, document_id)
+
+    async def list(
+        self, owner_id: ObjectId, *, limit: int, offset: int
+    ) -> tuple[list[Document], int]:
+        """A page of the owner's documents, newest first, and the owner's total."""
+        items = await self._documents.list_by_owner(owner_id, limit=limit, offset=offset)
+        return items, await self._documents.count_by_owner(owner_id)
+
+    async def delete(self, owner_id: ObjectId, document_id: ObjectId) -> bool:
+        """Delete a document the owner owns; False if there is no such document for this owner.
+
+        The record goes first: it is the source of truth, so from that moment the document is gone
+        for the user. Chunks and the file follow; if either cleanup fails the document stays
+        deleted and the leftover is logged for reconciliation (there is no cross-system
+        transaction).
+        """
+        document = await self._documents.get(owner_id, document_id)
+        if document is None:
+            return False
+        if not await self._documents.delete(owner_id, document_id):
+            return False  # a concurrent delete won
+
+        try:
+            await self._chunks.delete_by_document(document_id)
+        except Exception:
+            logger.warning("could not remove chunks of a deleted document", exc_info=True)
+        await self._discard(document.storage_key)
+        return True
 
     async def upload(
         self, owner_id: ObjectId, reader: AsyncReader, filename: str | None

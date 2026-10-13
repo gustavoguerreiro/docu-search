@@ -75,9 +75,29 @@ class FakeDocuments:
         self.created: list[dict[str, Any]] = []
         self.race: Document | None = None  # a document that appears between check and create
         self.create_error: Exception | None = None
+        self.by_id: dict[ObjectId, Document] = {}
+        self.lose_delete_race = False
 
     async def find_by_sha256(self, owner_id: ObjectId, sha256: str) -> Document | None:
         return self.existing
+
+    async def get(self, owner_id: ObjectId, document_id: ObjectId) -> Document | None:
+        found = self.by_id.get(document_id)
+        return found if found is not None and found.owner_id == owner_id else None
+
+    async def delete(self, owner_id: ObjectId, document_id: ObjectId) -> bool:
+        found = self.by_id.get(document_id)
+        if found is None or found.owner_id != owner_id or self.lose_delete_race:
+            return False
+        del self.by_id[document_id]
+        return True
+
+    async def list_by_owner(self, owner_id: ObjectId, *, limit: int, offset: int) -> list[Document]:
+        mine = [d for d in self.by_id.values() if d.owner_id == owner_id]
+        return mine[offset : offset + limit]
+
+    async def count_by_owner(self, owner_id: ObjectId) -> int:
+        return sum(1 for d in self.by_id.values() if d.owner_id == owner_id)
 
     async def create(self, **fields: Any) -> Document:
         if self.race is not None:
@@ -87,6 +107,23 @@ class FakeDocuments:
             raise self.create_error
         self.created.append(fields)
         return make_document(**{k: v for k, v in fields.items() if k != "owner_id"})
+
+
+class FakeChunks:
+    def __init__(self) -> None:
+        self.deleted_for: list[ObjectId] = []
+        self.fail = False
+
+    async def delete_by_document(self, document_id: ObjectId) -> int:
+        if self.fail:
+            raise RuntimeError("chunk store unavailable")
+        self.deleted_for.append(document_id)
+        return 3
+
+
+@pytest.fixture
+def chunks() -> FakeChunks:
+    return FakeChunks()
 
 
 @pytest.fixture
@@ -100,8 +137,10 @@ def documents() -> FakeDocuments:
 
 
 @pytest.fixture
-def service(storage: FakeStorage, documents: FakeDocuments) -> DocumentService:
-    return DocumentService(cast(Any, documents), storage, max_upload_bytes=10_000)
+def service(storage: FakeStorage, documents: FakeDocuments, chunks: FakeChunks) -> DocumentService:
+    return DocumentService(
+        cast(Any, documents), cast(Any, chunks), storage, max_upload_bytes=10_000
+    )
 
 
 async def test_a_valid_upload_is_stored_then_recorded(
@@ -201,3 +240,107 @@ async def test_rejected_uploads_touch_neither_storage_nor_database(
 
     assert storage.stored == {}
     assert documents.created == []
+
+
+# --- reading and deleting ---------------------------------------------------------------------
+
+
+def stored_document(documents: FakeDocuments, storage: FakeStorage, owner: ObjectId) -> Document:
+    document = make_document(owner_id=owner)
+    documents.by_id[document.id] = document
+    storage.stored[document.storage_key] = b"content"
+    return document
+
+
+async def test_get_is_scoped_to_the_owner(
+    service: DocumentService, documents: FakeDocuments, storage: FakeStorage
+) -> None:
+    document = stored_document(documents, storage, OWNER)
+
+    assert await service.get(OWNER, document.id) == document
+    assert await service.get(ObjectId(), document.id) is None
+
+
+async def test_list_returns_the_owners_page_and_total(
+    service: DocumentService, documents: FakeDocuments, storage: FakeStorage
+) -> None:
+    for _ in range(3):
+        stored_document(documents, storage, OWNER)
+    stored_document(documents, storage, ObjectId())
+
+    page, total = await service.list(OWNER, limit=2, offset=0)
+
+    assert len(page) == 2
+    assert total == 3
+    assert all(d.owner_id == OWNER for d in page)
+
+
+async def test_delete_removes_record_chunks_and_file(
+    service: DocumentService,
+    documents: FakeDocuments,
+    storage: FakeStorage,
+    chunks: FakeChunks,
+) -> None:
+    document = stored_document(documents, storage, OWNER)
+
+    assert await service.delete(OWNER, document.id) is True
+
+    assert document.id not in documents.by_id
+    assert chunks.deleted_for == [document.id]
+    assert storage.stored == {}
+
+
+async def test_delete_of_someone_elses_document_changes_nothing(
+    service: DocumentService,
+    documents: FakeDocuments,
+    storage: FakeStorage,
+    chunks: FakeChunks,
+) -> None:
+    document = stored_document(documents, storage, OWNER)
+
+    assert await service.delete(ObjectId(), document.id) is False
+
+    assert document.id in documents.by_id
+    assert chunks.deleted_for == []
+    assert storage.stored != {}
+
+
+async def test_delete_that_loses_a_race_reports_not_found_and_touches_no_files(
+    service: DocumentService,
+    documents: FakeDocuments,
+    storage: FakeStorage,
+    chunks: FakeChunks,
+) -> None:
+    document = stored_document(documents, storage, OWNER)
+    documents.lose_delete_race = True
+
+    assert await service.delete(OWNER, document.id) is False
+
+    assert chunks.deleted_for == []
+    assert storage.deleted == []
+
+
+async def test_a_failing_chunk_cleanup_does_not_undo_or_fail_the_delete(
+    service: DocumentService,
+    documents: FakeDocuments,
+    storage: FakeStorage,
+    chunks: FakeChunks,
+) -> None:
+    document = stored_document(documents, storage, OWNER)
+    chunks.fail = True
+
+    assert await service.delete(OWNER, document.id) is True
+
+    assert document.id not in documents.by_id
+    assert storage.stored == {}  # the file is still removed
+
+
+async def test_a_failing_file_cleanup_does_not_fail_the_delete(
+    service: DocumentService, documents: FakeDocuments, storage: FakeStorage
+) -> None:
+    document = stored_document(documents, storage, OWNER)
+    storage.fail_delete = True
+
+    assert await service.delete(OWNER, document.id) is True
+
+    assert document.id not in documents.by_id

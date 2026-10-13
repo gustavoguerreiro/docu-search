@@ -20,6 +20,7 @@ from docusearch.core.logging_setup import configure_logging
 from docusearch.core.settings import Settings, get_settings
 from docusearch.db.indexes import IndexInitializer
 from docusearch.db.mongo import create_client, get_database, ping
+from docusearch.db.repositories.chunks import ChunkRepository
 from docusearch.db.repositories.documents import DocumentRepository
 from docusearch.db.repositories.refresh_tokens import RefreshTokenRepository
 from docusearch.db.repositories.users import UserRepository
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.document_service = DocumentService(
         DocumentRepository(app.state.mongo_db),
+        ChunkRepository(app.state.mongo_db),
         storage,
         max_upload_bytes=settings.max_upload_size_mb * 1024 * 1024,
     )

@@ -11,7 +11,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | 1 | Project foundation | ✅ |
 | 2 | MongoDB infrastructure and persistence | ✅ |
 | 3 | Authentication and authorization | ✅ |
-| 4 | Document upload and storage | 🟨 |
+| 4 | Document upload and storage | ✅ |
 | 5 | Asynchronous ingestion pipeline | ⬜ |
 | 6 | Text search | ⬜ |
 | 7 | Production-minded API hardening | ⬜ |
@@ -99,7 +99,7 @@ expired, revoked and malformed tokens are rejected; cross-user access tests pass
 logged (checked against the container logs). Not done in this milestone, by design: rate limiting and
 account lockout (Milestone 7), access-token revocation, email verification and password reset.
 
-## Milestone 4 — Document upload and storage 🟨
+## Milestone 4 — Document upload and storage ✅
 
 Defaults adopted when the author did not answer: content sniffing by magic bytes with no external
 library, 25 MB upload limit (configurable 1-100), and `POST /documents` answers `202` from the start so
@@ -117,12 +117,16 @@ Sub-steps (one commit each):
    `409` + `Location`, file removed if the record cannot be created). ADR-0022. Verified end to end
    against the Docker stack (oversized upload rejected in milliseconds with 0 bytes read) and 8
    mutations caught.
-4. ⬜ `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`; cross-user API tests;
-   persistence across container recreation.
+4. ✅ `GET /documents` (paginated, owner-scoped), `GET /documents/{id}`, `DELETE /documents/{id}`;
+   cross-user API tests; malformed id = `422`, unknown or foreign id = identical `404` (ADR-0023).
+   Verified on the Docker stack including container recreation, plus 8 mutations caught.
 
-Acceptance: valid files are stored and tracked; invalid files rejected; users cannot access or delete
-others' files; storage operations have meaningful tests; files persist across container recreation when
-the documented volumes are preserved.
+Acceptance (all met, verified locally): valid files are stored and tracked; invalid files rejected;
+users cannot access or delete others' files (API-level matrix incl. forged owner hints); storage
+operations have meaningful tests (Linux-only security tests run in a container); files persist across
+container recreation with the documented volume. Not done here, by design: processing (Milestone 5), the
+`/content` and `/retry` endpoints, rate limiting (Milestone 7), reconciliation of orphaned files
+(Milestone 5), and an S3 adapter (Milestone 11).
 
 ## Milestones 5–12
 

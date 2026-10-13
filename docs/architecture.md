@@ -119,6 +119,9 @@ Reliability principles (MongoDB, Redis and the filesystem are **not** one transa
 - **Upload ordering:** store file → insert metadata → enqueue. Orphaned files and
   unenqueued documents are handled by reconciliation, not assumed impossible.
 
+Implemented so far (Milestone 4): upload (validate, deduplicate, store, record as `pending`), listing, detail
+and deletion. Processing, the state transitions after `pending` and the retry endpoint arrive in Milestone 5.
+
 ## 6. Security model (summary)
 
 Status: implemented through Milestone 3 (authentication, refresh rotation, ownership in queries,

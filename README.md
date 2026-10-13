@@ -11,8 +11,8 @@ infrastructure-as-code.
 
 ## Current status
 
-**Milestones 1 (foundation), 2 (MongoDB persistence) and 3 (authentication) are complete. Document
-upload, processing and search do not exist yet.**
+**Milestones 1 (foundation), 2 (MongoDB persistence), 3 (authentication) and 4 (document upload and
+storage) are complete. Uploaded documents stay `pending`: processing and search do not exist yet.**
 
 What exists and works today:
 
@@ -24,6 +24,8 @@ What exists and works today:
   tested against a real MongoDB; not yet exposed through the API
 - Authentication: registration and login endpoints, Argon2id password hashing, JWT access tokens,
   rotating refresh tokens with reuse detection; register, login, refresh, logout and `me` endpoints
+- Document upload, listing, detail and deletion, with content-based type checks, size limits, per-user
+  duplicate detection and files kept on a persistent volume
 - One error body for every failure: `{"error": {"code", "message", "details"?}}`
 - Docker image and a Docker Compose stack (API, MongoDB, Redis)
 - Linting, type checking, unit tests, and a GitHub Actions workflow
@@ -128,6 +130,9 @@ token, secret, authorization, ...) are redacted.
 | POST | `/api/v1/auth/logout` | Body `{"refresh_token"}`. Ends the session; always `204` |
 | GET | `/api/v1/auth/me` | The authenticated account (`Authorization: Bearer <access_token>`). `401` codes: `not_authenticated`, `token_expired`, `invalid_token` |
 | POST | `/api/v1/documents` | Multipart field `file` (PDF, DOCX or UTF-8 text, up to `MAX_UPLOAD_SIZE_MB`). `202` with the document (`pending`); `409` + `Location` if you already uploaded the same content; `413`, `415`, `400` for rejected files. The type is decided from the content, not the file name |
+| GET | `/api/v1/documents` | Your documents, newest first. Query `limit` (1–100, default 20) and `offset`; returns `items` and `total` |
+| GET | `/api/v1/documents/{id}` | One of your documents. `404` if it does not exist **or is not yours** (indistinguishable) |
+| DELETE | `/api/v1/documents/{id}` | Deletes the document, its text and its stored file; `204`. The same content can be uploaded again afterwards |
 
 `/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`), `storage`
 (the uploads directory is writable) and `indexes` (the required MongoDB indexes exist; created at startup,
