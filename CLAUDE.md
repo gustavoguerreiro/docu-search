@@ -81,6 +81,10 @@ Auth primitives: `core/passwords.py` (async Argon2id; never hash on the event lo
 (HS256 access tokens; one `InvalidTokenError` for callers). Never log tokens, hashes or the key; never
 add algorithms to `decode`'s list. `JWT_SECRET_KEY` is required in production and random per process
 otherwise. Unit tests in `tests/unit/core/test_tokens.py` are security-relevant: don't loosen them.
+Uploads: the type of a file comes only from its bytes (`documents/filetypes.py`); the client's file name and
+Content-Type are never inputs to a decision, and the sanitized name is display-only. Intake
+(`documents/intake.py`) enforces the size limit while streaming and hashes before anything is stored.
+`tests/unit/documents/` are security-relevant: don't loosen them.
 Storage: callers use only the `Storage` protocol (`storage/__init__.py`); keys come from `new_storage_key()`
 and are never derived from input; `LocalStorage` never overwrites and writes off the event loop. Its tests
 include Linux-only security tests (symlink escape, file modes): run them via the Linux container check when

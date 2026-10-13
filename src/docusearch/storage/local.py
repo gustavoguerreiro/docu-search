@@ -15,7 +15,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import BinaryIO
+from typing import IO
 
 from docusearch.storage import (
     InvalidStorageKeyError,
@@ -47,7 +47,7 @@ class LocalStorage:
             raise InvalidStorageKeyError("invalid storage key")
         return real
 
-    def _put_sync(self, key: str, source: BinaryIO) -> int:
+    def _put_sync(self, key: str, source: IO[bytes]) -> int:
         validate_storage_key(key)
         shard, name = key.split("/")
         self._root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -71,7 +71,7 @@ class LocalStorage:
             Path(tmp_name).unlink(missing_ok=True)
         return size
 
-    async def put(self, key: str, source: BinaryIO) -> int:
+    async def put(self, key: str, source: IO[bytes]) -> int:
         try:
             return await asyncio.to_thread(self._put_sync, key, source)
         except StorageError:

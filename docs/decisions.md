@@ -480,3 +480,41 @@ the database maps ids to keys. The file and its database record are not transact
 possible and are reconciled later. Uploaded content sits unencrypted on the volume (encryption at rest is
 a property of the host or of S3 in the cloud deployment).
 
+---
+
+## ADR-0021 — Upload validation: content decides, the client does not
+
+**Status:** Accepted (Milestone 4). The no-external-library choice was made by default when the author
+did not answer; revisit if more formats are added.
+
+**Context:** Uploaded files are untrusted. The file name and the declared MIME type are chosen by the
+sender, so neither can be a basis for acceptance.
+
+**Decision:**
+- Three formats are accepted, identified only from the bytes:
+  - **PDF**: starts with `%PDF-`.
+  - **DOCX**: a readable ZIP containing `[Content_Types].xml` and `word/document.xml`, with at most
+    10,000 entries and 256 MiB total uncompressed size (read from the central directory, nothing is
+    extracted), so a tiny archive cannot promise an unbounded expansion to the extractor.
+  - **TXT**: strict UTF-8 with no control characters other than tab, newline and carriage return and no
+    DEL. UTF-16, Latin-1 and binary data are refused rather than guessed at.
+- The canonical content type is derived from the detection and stored; the declared one is ignored. A
+  file named `invoice.pdf` that is plain text is stored as text, and a PNG renamed `.txt` is refused.
+- The original file name is sanitized for display only: last path component, control and
+  format characters (including bidirectional overrides) removed, reserved characters replaced, trailing
+  dots and spaces stripped, 255 characters at most with the extension preserved. It never participates in
+  a storage key or path.
+- Intake streams the upload through a temporary file (memory up to 1 MiB, then disk), counting bytes and
+  computing SHA-256 off the event loop, and stops reading as soon as the limit is exceeded. Empty files
+  are refused. Detection runs after the full content is available because DOCX validity needs the ZIP
+  central directory at the end of the file.
+- A passing check means "plausibly this format". Extraction (Milestone 5) must still treat the content
+  as hostile.
+
+**Consequences:** Rejection reasons are specific (too large, empty, unsupported type) and safe to show.
+Detection is deliberately conservative: a valid-but-unusual file (UTF-16 text, a DOCX written by an
+unusual tool that omits a standard part) is refused. A PDF is accepted on its header alone, so a
+corrupt PDF is accepted and fails later at extraction, which is reported as a failed document.
+Without a size guard at the HTTP layer the framework would buffer a whole request before intake sees
+it; that guard is part of the next step.
+

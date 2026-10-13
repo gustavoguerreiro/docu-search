@@ -7,7 +7,7 @@ nothing a client sends is ever part of a key.
 
 import re
 import secrets
-from typing import BinaryIO, Protocol
+from typing import IO, Protocol
 
 # "ab/0123456789abcdef0123456789abcdef": a two-character shard directory and 128 random bits.
 _KEY_PATTERN = re.compile(r"[0-9a-f]{2}/[0-9a-f]{32}")
@@ -37,7 +37,7 @@ def validate_storage_key(key: str) -> None:
 
 
 class Storage(Protocol):
-    async def put(self, key: str, source: BinaryIO) -> int:
+    async def put(self, key: str, source: IO[bytes]) -> int:
         """Store everything readable from `source` under a new key; returns the byte count.
 
         All or nothing: after a failure there is no object under `key`. Raises

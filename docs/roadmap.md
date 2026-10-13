@@ -110,8 +110,9 @@ Sub-steps (one commit each):
 1. ✅ `Storage` protocol + `LocalStorage` (server-generated keys, atomic no-overwrite publish, containment
    check, off-loop I/O), `storage` readiness check, `uploads_data` volume. ADR-0020. Verified on Linux
    (36 tests, 6 mutations) and in the container (non-root write, persistence across recreation).
-2. ⬜ Upload validation: real type detection (PDF / DOCX / UTF-8 TXT), filename sanitization, streaming
-   intake with size limit and SHA-256.
+2. ✅ Upload validation (`documents/`, ADR-0021): content-based type detection (PDF / DOCX / UTF-8
+   TXT), filename sanitization, streaming intake with size limit and SHA-256. Pure functions, no
+   endpoint yet. 70 unit tests; 12 mutations of the rules all caught.
 3. ⬜ Request-size guard and `POST /documents` (duplicate detection, compensation on failure).
 4. ⬜ `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`; cross-user API tests;
    persistence across container recreation.
