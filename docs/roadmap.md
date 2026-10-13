@@ -11,7 +11,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | 1 | Project foundation | ✅ |
 | 2 | MongoDB infrastructure and persistence | ✅ |
 | 3 | Authentication and authorization | ✅ |
-| 4 | Document upload and storage | ⬜ |
+| 4 | Document upload and storage | 🟨 |
 | 5 | Asynchronous ingestion pipeline | ⬜ |
 | 6 | Text search | ⬜ |
 | 7 | Production-minded API hardening | ⬜ |
@@ -99,12 +99,32 @@ expired, revoked and malformed tokens are rejected; cross-user access tests pass
 logged (checked against the container logs). Not done in this milestone, by design: rate limiting and
 account lockout (Milestone 7), access-token revocation, email verification and password reset.
 
-## Milestones 4–12
+## Milestone 4 — Document upload and storage 🟨
+
+Defaults adopted when the author did not answer: content sniffing by magic bytes with no external
+library, 25 MB upload limit (configurable 1-100), and `POST /documents` answers `202` from the start so
+the contract does not change when processing arrives in Milestone 5 (until then documents stay `pending`).
+
+Sub-steps (one commit each):
+
+1. ✅ `Storage` protocol + `LocalStorage` (server-generated keys, atomic no-overwrite publish, containment
+   check, off-loop I/O), `storage` readiness check, `uploads_data` volume. ADR-0020. Verified on Linux
+   (36 tests, 6 mutations) and in the container (non-root write, persistence across recreation).
+2. ⬜ Upload validation: real type detection (PDF / DOCX / UTF-8 TXT), filename sanitization, streaming
+   intake with size limit and SHA-256.
+3. ⬜ Request-size guard and `POST /documents` (duplicate detection, compensation on failure).
+4. ⬜ `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`; cross-user API tests;
+   persistence across container recreation.
+
+Acceptance: valid files are stored and tracked; invalid files rejected; users cannot access or delete
+others' files; storage operations have meaningful tests; files persist across container recreation when
+the documented volumes are preserved.
+
+## Milestones 5–12
 
 Scope and acceptance criteria for each are defined in the project instructions provided by the
 author and will be expanded into sub-steps here when the milestone begins. Summary of intent:
 
-- **4** Local storage adapter behind an interface, upload validation (content sniffing, size limit, allowlist), SHA-256, per-user duplicate detection.
 - **5** Redis/RQ worker, extraction, chunking, state machine, idempotency, retries, stale-job reconciliation; upload returns 202.
 - **6** Mongo text search scoped to owner and completed documents, pagination, document endpoints.
 - **7** Error schema, correlation IDs, rate limiting, timeouts, graceful shutdown.

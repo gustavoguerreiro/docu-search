@@ -21,6 +21,7 @@ from docusearch.db.indexes import IndexInitializer
 from docusearch.db.mongo import create_client, get_database, ping
 from docusearch.db.repositories.refresh_tokens import RefreshTokenRepository
 from docusearch.db.repositories.users import UserRepository
+from docusearch.storage.local import LocalStorage
 
 API_PREFIX = "/api/v1"
 
@@ -40,6 +41,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.readiness_checks["mongodb"] = partial(
         ping, mongo_client, timeout_seconds=settings.mongodb_timeout_ms / 1000 + 1
     )
+
+    # Created lazily on first use; the readiness check reports whether it is writable.
+    storage = LocalStorage(settings.storage_local_root)
+    app.state.storage = storage
+    app.state.readiness_checks["storage"] = storage.healthy
 
     refresh_tokens = RefreshTokenService(RefreshTokenRepository(app.state.mongo_db), settings)
     app.state.auth_service = AuthService(

@@ -74,9 +74,9 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Asserts are the point of tests, and fake credentials (S105/S106) are how secret handling is tested.
-# Both rules stay fully active for src/.
-"tests/**" = ["S101", "S105", "S106"]
+# Asserts are the point of tests, fake credentials (S105/S106) are how secret handling is tested,
+# and tests may use blocking pathlib calls (ASYNC240) to inspect files. All stay active for src/.
+"tests/**" = ["S101", "S105", "S106", "ASYNC240"]
 
 [tool.mypy]
 python_version = "3.13"

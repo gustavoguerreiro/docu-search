@@ -29,6 +29,9 @@ RUN groupadd --system --gid 10001 app \
 
 COPY --from=builder /app/.venv /app/.venv
 
+# Mount point for the uploads volume (a new named volume inherits this owner).
+RUN mkdir -p /data/uploads && chown -R app:app /data
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1

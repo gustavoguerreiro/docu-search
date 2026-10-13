@@ -88,6 +88,14 @@ ADR-0014); ownership is part of every document/chunk query. The text index used 
 Milestone 6. Indexes are created idempotently at startup; if
 MongoDB is unavailable then, the process still starts and the `indexes` readiness check retries.
 
+## 4c. Storage
+
+Uploaded files go through the `Storage` protocol (`src/docusearch/storage/`): `put`, `delete`, `healthy`.
+`LocalStorage` keeps them under `STORAGE_LOCAL_ROOT` as `<2 hex>/<32 hex>` objects with keys generated
+by the server (ADR-0020). An S3 adapter implements the same protocol in the AWS milestone. The database
+record (not the file) is the source of truth; the two are not updated atomically, so a failure between
+them can leave an orphaned file, which is cleaned up by reconciliation (Milestone 5).
+
 ## 5. Document lifecycle
 
 States: `pending → processing → completed | failed`.

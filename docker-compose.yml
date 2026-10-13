@@ -23,9 +23,12 @@ services:
       APP_ENV: local
       # The service name resolves only on the compose network; a host-side .env must not override it.
       MONGODB_URI: mongodb://mongo:27017
+      STORAGE_LOCAL_ROOT: /data/uploads
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - uploads_data:/data/uploads
     cap_drop:
       - ALL
     security_opt:
@@ -94,3 +97,4 @@ services:
 volumes:
   mongo_data:
   redis_data:
+  uploads_data:

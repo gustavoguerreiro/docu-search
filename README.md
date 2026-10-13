@@ -80,7 +80,8 @@ make down      # stop the stack; data volumes are kept
 
 The API is published only on `127.0.0.1:8000`. MongoDB and Redis have no host ports: they are
 reachable only from other containers on the Compose network. Data lives in the named volumes
-`docusearch_mongo_data` and `docusearch_redis_data`; `make down` keeps them. To delete the data
+`docusearch_mongo_data`, `docusearch_redis_data` and `docusearch_uploads_data` (uploaded files); `make down`
+keeps them. To delete the data
 deliberately, run `docker compose down -v`.
 
 Use either option at a time: both listen on port 8000.
@@ -108,6 +109,8 @@ for later milestones and is ignored until then.
 | `JWT_ALGORITHM` | `HS256` | only `HS256` is accepted |
 | `ACCESS_TOKEN_TTL_MINUTES` | `15` | 1–60 |
 | `REFRESH_TOKEN_TTL_DAYS` | `14` | 1–90; a session ends this long after login (refreshing does not extend it) |
+| `STORAGE_BACKEND` | `local` | only `local` exists |
+| `STORAGE_LOCAL_ROOT` | `data/uploads` | where uploaded files are kept. Compose sets `/data/uploads`, backed by the `docusearch_uploads_data` volume |
 
 Logs are one JSON object per line on stdout. Values under keys that look sensitive (password,
 token, secret, authorization, ...) are redacted.
@@ -124,9 +127,9 @@ token, secret, authorization, ...) are redacted.
 | POST | `/api/v1/auth/logout` | Body `{"refresh_token"}`. Ends the session; always `204` |
 | GET | `/api/v1/auth/me` | The authenticated account (`Authorization: Bearer <access_token>`). `401` codes: `not_authenticated`, `token_expired`, `invalid_token` |
 
-`/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`) and
-`indexes` (the required MongoDB indexes exist; created at startup, retried until they do):
-`{"status":"ok","checks":{"mongodb":"ok","indexes":"ok"}}`, or `503` with `"fail"` for what is wrong.
+`/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`), `storage`
+(the uploads directory is writable) and `indexes` (the required MongoDB indexes exist; created at startup,
+retried until they do): `{"status":"ok","checks":{"mongodb":"ok","storage":"ok","indexes":"ok"}}`, or `503` with `"fail"` for what is wrong.
 The body never contains error details. Redis is added when it is first used (Milestone 5).
 
 ## Developer commands

@@ -5,6 +5,7 @@ This is the only place configuration is defined. Each milestone adds the fields 
 
 import secrets
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal, Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -49,6 +50,10 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = Field(default=15, ge=1, le=60)
     # A session ends this long after login: refreshing does not extend it.
     refresh_token_ttl_days: int = Field(default=14, ge=1, le=90)
+
+    # Only the local filesystem is implemented; "s3" is added when the AWS milestone needs it.
+    storage_backend: Literal["local"] = "local"
+    storage_local_root: Path = Path("data/uploads")
 
     @field_validator("log_level", mode="before")
     @classmethod

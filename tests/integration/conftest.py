@@ -7,6 +7,7 @@ connect to mongodb://127.0.0.1:27018; override with MONGODB_TEST_URI.
 import os
 import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
@@ -38,10 +39,11 @@ def test_db_name() -> str:
 
 
 @pytest.fixture
-def mongo_settings(mongo_uri: str, test_db_name: str) -> Settings:
+def mongo_settings(mongo_uri: str, test_db_name: str, tmp_path: Path) -> Settings:
     return Settings(
         _env_file=None,
         app_env="test",
+        storage_local_root=tmp_path / "uploads",
         mongodb_uri=SecretStr(mongo_uri),
         mongodb_db_name=test_db_name,
         mongodb_timeout_ms=2000,

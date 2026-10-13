@@ -18,6 +18,8 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "JWT_ALGORITHM",
         "ACCESS_TOKEN_TTL_MINUTES",
         "REFRESH_TOKEN_TTL_DAYS",
+        "STORAGE_BACKEND",
+        "STORAGE_LOCAL_ROOT",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -209,3 +211,19 @@ def test_refresh_token_ttl_defaults_and_is_bounded(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setenv("REFRESH_TOKEN_TTL_DAYS", "30")
     assert Settings(_env_file=None).refresh_token_ttl_days == 30
+
+
+def test_storage_defaults_and_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    default = Settings(_env_file=None)
+    assert default.storage_backend == "local"
+    assert default.storage_local_root == Path("data/uploads")
+
+    monkeypatch.setenv("STORAGE_LOCAL_ROOT", "/var/lib/docusearch/uploads")
+    assert Settings(_env_file=None).storage_local_root == Path("/var/lib/docusearch/uploads")
+
+
+def test_only_the_local_storage_backend_exists_yet(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("STORAGE_BACKEND", "s3")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

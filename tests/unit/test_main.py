@@ -141,7 +141,7 @@ async def test_lifespan_registers_the_indexes_readiness_check(spy_client: SpyMon
     app = create_app(Settings(_env_file=None))
 
     async with app.router.lifespan_context(app):
-        assert set(app.state.readiness_checks) == {"mongodb", "indexes"}
+        assert set(app.state.readiness_checks) == {"mongodb", "storage", "indexes"}
         assert await app.state.readiness_checks["indexes"]() is True
 
 

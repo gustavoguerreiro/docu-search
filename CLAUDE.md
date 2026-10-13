@@ -81,6 +81,10 @@ Auth primitives: `core/passwords.py` (async Argon2id; never hash on the event lo
 (HS256 access tokens; one `InvalidTokenError` for callers). Never log tokens, hashes or the key; never
 add algorithms to `decode`'s list. `JWT_SECRET_KEY` is required in production and random per process
 otherwise. Unit tests in `tests/unit/core/test_tokens.py` are security-relevant: don't loosen them.
+Storage: callers use only the `Storage` protocol (`storage/__init__.py`); keys come from `new_storage_key()`
+and are never derived from input; `LocalStorage` never overwrites and writes off the event loop. Its tests
+include Linux-only security tests (symlink escape, file modes): run them via the Linux container check when
+changing the adapter, don't rely on a Windows run. A new file-storage test must not write outside `tmp_path`.
 Errors: raise `api.errors.ApiError(status, code, message)`; every failure uses the body
 `{"error": {"code", "message", "details"?}}`. Validation errors must never echo submitted values.
 Registration must stay indistinguishable for existing emails and login must verify against the dummy
