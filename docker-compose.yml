@@ -3,8 +3,8 @@
 # - MongoDB and Redis publish NO host ports; they are reachable only from other services on the
 #   compose network. MongoDB runs without authentication, which is acceptable only because of
 #   that isolation. Do not publish its port without enabling auth first.
-# - Only the API is published, and only on the loopback interface. The one exception is the
-#   `mongo-test` service (profile `test`, ephemeral data), also loopback-only.
+# - Only the API is published, and only on the loopback interface. The exceptions are the
+#   `mongo-test` and `redis-test` services (profile `test`, ephemeral data), also loopback-only.
 # - Data lives in named volumes. `make down` keeps them; only `docker compose down -v` deletes them.
 
 name: docusearch
@@ -23,6 +23,7 @@ services:
       APP_ENV: local
       # The service name resolves only on the compose network; a host-side .env must not override it.
       MONGODB_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/0
       STORAGE_LOCAL_ROOT: /data/uploads
     read_only: true
     tmpfs:
@@ -40,6 +41,43 @@ services:
         - -c
         - "import urllib.request as u, sys; sys.exit(0 if u.urlopen('http://127.0.0.1:8000/api/v1/health/live', timeout=3).status == 200 else 1)"
       interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Background worker: same image as the API, different entry point. It is not published anywhere.
+  worker:
+    build: .
+    image: docusearch:local
+    command: ["python", "-m", "docusearch.worker"]
+    environment:
+      APP_ENV: local
+      MONGODB_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_LOCAL_ROOT: /data/uploads
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+    # A job in progress is allowed to finish on `docker compose stop` (RQ warm shutdown).
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - uploads_data:/data/uploads
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-m", "docusearch.worker", "--healthcheck"]
+      interval: 15s
       timeout: 5s
       retries: 3
       start_period: 10s
@@ -81,6 +119,19 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  # Throwaway Redis for integration tests (`make test-integration`), loopback only, no persistence.
+  redis-test:
+    image: redis:7.4.11-bookworm
+    profiles: ["test"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7.4.11-bookworm

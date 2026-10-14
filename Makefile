@@ -33,11 +33,11 @@ health: ## Call the liveness and readiness endpoints of the running stack
 test: ## Run the unit test suite with coverage
 	$(UV_RUN) pytest -m "not integration" --cov --cov-report=term-missing
 
-test-db-up: ## Start the throwaway MongoDB used by integration tests (127.0.0.1:27018)
-	docker compose --profile test up -d --wait mongo-test
+test-db-up: ## Start the throwaway MongoDB and Redis used by integration tests (127.0.0.1:27018, :6380)
+	docker compose --profile test up -d --wait mongo-test redis-test
 
-test-db-down: ## Remove the throwaway test MongoDB (its data is ephemeral)
-	docker compose --profile test rm -sf mongo-test
+test-db-down: ## Remove the throwaway test MongoDB and Redis (their data is ephemeral)
+	docker compose --profile test rm -sf mongo-test redis-test
 
 test-integration: ## Run integration tests against a throwaway MongoDB (always cleaned up)
 	$(MAKE) test-db-up

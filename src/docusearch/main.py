@@ -25,6 +25,8 @@ from docusearch.db.repositories.documents import DocumentRepository
 from docusearch.db.repositories.refresh_tokens import RefreshTokenRepository
 from docusearch.db.repositories.users import UserRepository
 from docusearch.documents.service import DocumentService
+from docusearch.jobs.redis_queue import RqJobQueue, create_redis
+from docusearch.jobs.redis_queue import ping as redis_ping
 from docusearch.storage.local import LocalStorage
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.readiness_checks["mongodb"] = partial(
         ping, mongo_client, timeout_seconds=settings.mongodb_timeout_ms / 1000 + 1
     )
+
+    # Like the MongoDB client, creating this does not connect: the API starts while Redis is down
+    # and reports not-ready until it returns.
+    redis_client = create_redis(settings)
+    app.state.redis = redis_client
+    app.state.job_queue = RqJobQueue.from_client(redis_client)
+    app.state.readiness_checks["redis"] = partial(redis_ping, redis_client)
 
     # Created lazily on first use; the readiness check reports whether it is writable.
     storage = LocalStorage(settings.storage_local_root)
@@ -79,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await mongo_client.close()
+        redis_client.close()
         logger.info("application stopped")
 
 

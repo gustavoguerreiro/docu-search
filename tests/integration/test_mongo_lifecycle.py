@@ -56,7 +56,7 @@ async def test_app_reports_ready_and_releases_the_client(mongo_settings: Setting
     assert response.status_code == 200
     assert response.json() == {
         "status": "ok",
-        "checks": {"mongodb": "ok", "storage": "ok", "indexes": "ok"},
+        "checks": {"mongodb": "ok", "redis": "ok", "storage": "ok", "indexes": "ok"},
     }
     with pytest.raises(InvalidOperation):
         await client.admin.command("ping")
@@ -80,7 +80,7 @@ async def test_app_reports_unavailable_when_mongodb_is_unreachable(
     assert ready.json() == {
         "status": "unavailable",
         # storage is independent of the database, so it stays healthy
-        "checks": {"mongodb": "fail", "storage": "ok", "indexes": "fail"},
+        "checks": {"mongodb": "fail", "redis": "ok", "storage": "ok", "indexes": "fail"},
     }
     assert live.status_code == 200
 

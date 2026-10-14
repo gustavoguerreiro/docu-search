@@ -70,6 +70,16 @@ class SpyDatabase:
         return object()  # repositories only hold on to the collection handle
 
 
+class SpyRedis:
+    """Stands in for the Redis client: records that it was closed, never connects."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class SpyMongoClient:
     def __init__(self) -> None:
         self.closed = False
@@ -92,6 +102,7 @@ def spy_client(monkeypatch: pytest.MonkeyPatch) -> SpyMongoClient:
     """Unit tests of the app never create a real client or touch a database."""
     spy = SpyMongoClient()
     monkeypatch.setattr("docusearch.main.create_client", lambda settings: spy)
+    monkeypatch.setattr("docusearch.main.create_redis", lambda settings: SpyRedis())
 
     async def no_indexes(db: object) -> None:
         return None
@@ -141,7 +152,7 @@ async def test_lifespan_registers_the_indexes_readiness_check(spy_client: SpyMon
     app = create_app(Settings(_env_file=None))
 
     async with app.router.lifespan_context(app):
-        assert set(app.state.readiness_checks) == {"mongodb", "storage", "indexes"}
+        assert set(app.state.readiness_checks) == {"mongodb", "redis", "storage", "indexes"}
         assert await app.state.readiness_checks["indexes"]() is True
 
 

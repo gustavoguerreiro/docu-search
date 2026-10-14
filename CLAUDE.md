@@ -59,7 +59,7 @@ make down          # stop the stack; volumes are kept (never use `down -v` witho
 make logs          # follow stack logs
 make health        # curl live/ready on the running stack (127.0.0.1:8000)
 make test          # pytest (unit, with coverage); excludes everything under tests/integration
-make test-integration  # throwaway MongoDB (profile `test`, 127.0.0.1:27018) -> pytest -m integration -> cleanup
+make test-integration  # throwaway MongoDB :27018 + Redis :6380 (profile `test`) -> pytest -m integration -> cleanup
 make lint          # ruff check
 make format        # ruff format   (make format-check to verify only)
 make typecheck     # mypy (strict)
@@ -81,6 +81,10 @@ Auth primitives: `core/passwords.py` (async Argon2id; never hash on the event lo
 (HS256 access tokens; one `InvalidTokenError` for callers). Never log tokens, hashes or the key; never
 add algorithms to `decode`'s list. `JWT_SECRET_KEY` is required in production and random per process
 otherwise. Unit tests in `tests/unit/core/test_tokens.py` are security-relevant: don't loosen them.
+Queue/worker: the API talks to the queue only through `jobs.JobQueue` (payload = document id, nothing else); the
+worker is `python -m docusearch.worker` (same image). RQ forks per job, so database clients are created INSIDE
+the job (never before the fork) and jobs reuse the async repositories via `asyncio.run` (ADR-0024). Tests that
+execute a real worker are Linux-only: run them with the Linux container check, not just on Windows.
 Read/delete: ids from the path are `ObjectIdStr` (malformed -> 422); a missing or foreign document is the same
 `404 document_not_found` from one code path (`_not_found()`), never a different message. `DocumentService.delete`
 removes the record first, then chunks and file, and tolerates cleanup failures (logged, reconciled later).

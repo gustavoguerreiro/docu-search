@@ -6,16 +6,19 @@ connect to mongodb://127.0.0.1:27018; override with MONGODB_TEST_URI.
 
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
+from redis import Redis
+from redis.exceptions import RedisError
 
 from docusearch.core.settings import Settings
 from docusearch.db.mongo import MongoClient, MongoDatabase, create_client, ping
 
 DEFAULT_TEST_URI = "mongodb://127.0.0.1:27018"
+DEFAULT_REDIS_TEST_URL = "redis://127.0.0.1:6380/0"
 TEST_DB_PREFIX = "docusearch_test_"
 
 
@@ -33,17 +36,30 @@ def mongo_uri() -> str:
 
 
 @pytest.fixture
+def redis_url() -> str:
+    return os.environ.get("REDIS_TEST_URL", DEFAULT_REDIS_TEST_URL)
+
+
+@pytest.fixture
+def queue_name() -> str:
+    """A queue per test, so jobs of different tests never meet."""
+    return f"docusearch-test-{uuid.uuid4().hex[:12]}"
+
+
+@pytest.fixture
 def test_db_name() -> str:
     """A unique database per test, so tests can never see each other's data."""
     return f"{TEST_DB_PREFIX}{uuid.uuid4().hex[:12]}"
 
 
 @pytest.fixture
-def mongo_settings(mongo_uri: str, test_db_name: str, tmp_path: Path) -> Settings:
+def mongo_settings(mongo_uri: str, redis_url: str, test_db_name: str, tmp_path: Path) -> Settings:
     return Settings(
         _env_file=None,
         app_env="test",
         storage_local_root=tmp_path / "uploads",
+        redis_url=SecretStr(redis_url),
+        redis_timeout_ms=2000,
         mongodb_uri=SecretStr(mongo_uri),
         mongodb_db_name=test_db_name,
         mongodb_timeout_ms=2000,
@@ -78,3 +94,21 @@ async def mongo_db(
         yield db
     finally:
         await mongo_client.drop_database(name)
+
+
+@pytest.fixture
+def redis_client(redis_url: str) -> Iterator[Redis]:
+    """A real client against the throwaway Redis. Unreachable means fail, not skip."""
+    client = Redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
+    try:
+        try:
+            client.ping()
+        except RedisError:
+            pytest.fail(
+                "Test Redis is not reachable at the configured URL. "
+                "Run `make test-integration`, or `make test-db-up` and retry "
+                "(override the URL with REDIS_TEST_URL)."
+            )
+        yield client
+    finally:
+        client.close()

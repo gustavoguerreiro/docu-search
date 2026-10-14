@@ -67,19 +67,19 @@ jobs:
         run: uv sync --locked
 
       # Same service definition as `make test-integration`: one source of truth for the image.
-      - name: Start test MongoDB
-        run: docker compose --profile test up -d --wait mongo-test
+      - name: Start test MongoDB and Redis
+        run: docker compose --profile test up -d --wait mongo-test redis-test
 
       - name: Integration tests
         run: uv run --locked pytest -m integration
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose --profile test logs --no-color --tail=200 mongo-test
+        run: docker compose --profile test logs --no-color --tail=200 mongo-test redis-test
 
-      - name: Stop test MongoDB
+      - name: Stop test services
         if: always()
-        run: docker compose --profile test rm -sf mongo-test
+        run: docker compose --profile test rm -sf mongo-test redis-test
 
   docker:
     name: Docker image and stack
@@ -102,6 +102,7 @@ jobs:
           curl -fsS http://127.0.0.1:8000/api/v1/health/live
           # Fails unless the mongodb readiness check is registered and passing.
           curl -fsS http://127.0.0.1:8000/api/v1/health/ready | grep -q '"mongodb":"ok"'
+          curl -fsS http://127.0.0.1:8000/api/v1/health/ready | grep -q '"redis":"ok"'
 
       - name: Show logs on failure
         if: failure()

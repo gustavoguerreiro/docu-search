@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Bounds server selection and connection attempts, so a dead database fails fast.
     mongodb_timeout_ms: int = Field(default=2000, ge=100, le=60_000)
 
+    # Queue backend. The URL may carry a password, hence SecretStr.
+    redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
+    # Bounds connecting to and waiting on Redis, so a dead queue fails fast instead of hanging.
+    redis_timeout_ms: int = Field(default=2000, ge=100, le=60_000)
+
     # Signing key for access tokens. When unset outside production, a random key is generated for
     # this process: there is no public default to forge tokens with, but tokens do not survive a
     # restart and differ between processes. Production must provide one (see the validator below).

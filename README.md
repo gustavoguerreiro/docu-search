@@ -22,6 +22,7 @@ What exists and works today:
   readiness checks
 - Data-access layer (users, documents, chunks, refresh tokens) with ownership enforced in queries,
   tested against a real MongoDB; not yet exposed through the API
+- Redis/RQ job queue and a separate worker process (placeholder job; no processing yet)
 - Authentication: registration and login endpoints, Argon2id password hashing, JWT access tokens,
   rotating refresh tokens with reuse detection; register, login, refresh, logout and `me` endpoints
 - Document upload, listing, detail and deletion, with content-based type checks, size limits, per-user
@@ -80,7 +81,9 @@ make logs      # follow logs (Ctrl+C to stop following)
 make down      # stop the stack; data volumes are kept
 ```
 
-The API is published only on `127.0.0.1:8000`. MongoDB and Redis have no host ports: they are
+The stack also runs a background `worker` (same image, `python -m docusearch.worker`); for now it only
+receives and logs jobs, the processing arrives in the next steps of Milestone 5. The API is published only on
+`127.0.0.1:8000`. MongoDB, Redis and the worker have no host ports: they are
 reachable only from other containers on the Compose network. Data lives in the named volumes
 `docusearch_mongo_data`, `docusearch_redis_data` and `docusearch_uploads_data` (uploaded files); `make down`
 keeps them. To delete the data
@@ -107,6 +110,8 @@ for later milestones and is ignored until then.
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string; may contain credentials, never logged. Compose sets `mongodb://mongo:27017` for the container |
 | `MONGODB_DB_NAME` | `docusearch` | letters, digits, `_`, `-` (max 38) |
 | `MONGODB_TIMEOUT_MS` | `2000` | 100–60000; bounds connection / server selection so a dead database fails fast |
+| `REDIS_URL` | `redis://localhost:6379/0` | queue backend; may contain a password, never logged. Compose sets `redis://redis:6379/0` for the containers |
+| `REDIS_TIMEOUT_MS` | `2000` | 100–60000; bounds connecting to and waiting on Redis |
 | `JWT_SECRET_KEY` | random per process | ≥ 32 characters; **required when `APP_ENV=production`**, never committed. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `JWT_ALGORITHM` | `HS256` | only `HS256` is accepted |
 | `ACCESS_TOKEN_TTL_MINUTES` | `15` | 1–60 |
@@ -134,9 +139,9 @@ token, secret, authorization, ...) are redacted.
 | GET | `/api/v1/documents/{id}` | One of your documents. `404` if it does not exist **or is not yours** (indistinguishable) |
 | DELETE | `/api/v1/documents/{id}` | Deletes the document, its text and its stored file; `204`. The same content can be uploaded again afterwards |
 
-`/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`), `storage`
-(the uploads directory is writable) and `indexes` (the required MongoDB indexes exist; created at startup,
-retried until they do): `{"status":"ok","checks":{"mongodb":"ok","storage":"ok","indexes":"ok"}}`, or `503` with `"fail"` for what is wrong.
+`/ready` runs its checks concurrently: `mongodb` (a `ping`, bounded by `MONGODB_TIMEOUT_MS`), `redis`
+(the queue answers), `storage` (the uploads directory is writable) and `indexes` (the required MongoDB indexes exist; created at startup,
+retried until they do): `{"status":"ok","checks":{"mongodb":"ok","redis":"ok","storage":"ok","indexes":"ok"}}`, or `503` with `"fail"` for what is wrong.
 The body never contains error details. Redis is added when it is first used (Milestone 5).
 
 ## Developer commands
@@ -146,15 +151,15 @@ The body never contains error details. Redis is added when it is first used (Mil
 | `make install` | Install locked dependencies (`uv sync --locked`) |
 | `make run` | Run the API locally with auto-reload |
 | `make test` | Unit tests with coverage (no services needed) |
-| `make test-integration` | Integration tests against a throwaway MongoDB (needs Docker; cleans up after itself) |
+| `make test-integration` | Integration tests against a throwaway MongoDB and Redis (needs Docker; cleans up after itself). The test that executes a real RQ worker needs Linux and is skipped on Windows; CI runs it |
 | `make lint` / `make format` / `make format-check` | Ruff lint / format / verify formatting |
 | `make typecheck` | mypy in strict mode |
 | `make check` | All of the above checks and the tests |
 | `make up` / `make down` / `make logs` / `make health` | Docker stack lifecycle |
 
-Integration tests use a separate, ephemeral MongoDB (Compose profile `test`) published only on
-`127.0.0.1:27018`; it never touches your dev data and is not started by `make up`. Set
-`MONGODB_TEST_URI` to point the tests at another instance. If that instance is down, the tests fail
+Integration tests use a separate, ephemeral MongoDB and Redis (Compose profile `test`) published only on
+`127.0.0.1:27018` and `127.0.0.1:6380`; they never touch your dev data and are not started by `make up`.
+Set `MONGODB_TEST_URI` / `REDIS_TEST_URL` to point the tests at other instances. If that instance is down, the tests fail
 with instructions instead of being skipped.
 
 Run `make help` for the list. Dependencies are pinned exactly in `pyproject.toml` and locked in

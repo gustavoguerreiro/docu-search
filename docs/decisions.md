@@ -578,3 +578,41 @@ reconciliation exists in Milestone 5. A `204` therefore means "the document is d
 gone". Offset pagination can skip or repeat items if documents are added between pages; acceptable for
 per-user lists (ADR-0014).
 
+---
+
+## ADR-0024 — Job queue boundary, worker process and the async/sync bridge
+
+**Status:** Accepted (Milestone 5). The `asyncio.run`-per-job choice was delegated by the author and made
+by the assistant as the better demonstration of the architecture; the library and tokenizer choices were
+the author's.
+
+**Context:** Document processing must run outside the request lifecycle, retry safely, and reuse the
+domain code. RQ is synchronous and forks a work horse per job; the data layer (PyMongo Async,
+repositories, models, indexes) is asynchronous.
+
+**Decision:**
+- **Boundary:** the API depends on a `JobQueue` protocol (`enqueue_document(document_id)`); `RqJobQueue`
+  implements it over Redis. A job's payload is the document id only: no content, no secrets. Queue name
+  `documents`, job timeout, `result_ttl=0` (the document record is the outcome) and a 7-day
+  `failure_ttl` are explicit. Enqueue runs in a worker thread because the RQ client is synchronous.
+- **Worker:** `python -m docusearch.worker`, same image as the API, run as a non-root user with a
+  read-only root filesystem, no published ports, `depends_on` healthy MongoDB and Redis, restart on
+  failure, and a 30 s stop grace period (RQ warm shutdown finishes the current job). Its healthcheck asks
+  Redis whether a worker is registered.
+- **Async in the worker (chosen) vs. a sync driver:** each job runs `asyncio.run(...)` and creates its own
+  `AsyncMongoClient` inside the forked child, then closes it. This reuses the repositories, models, index
+  definitions and services unchanged, instead of keeping a parallel synchronous data layer. Creating the
+  client inside the job is also required for correctness: PyMongo clients must not be created before a
+  fork. The per-job cost (a new loop and connection) is milliseconds against seconds of extraction.
+  Extraction and chunking stay synchronous pure functions.
+- **Failure of the queue** is a `JobQueueError` that carries no driver text, and the API reports `redis`
+  as not ready while staying alive, exactly like MongoDB (ADR-0011).
+- **Libraries:** `pypdf` and `python-docx` for extraction (pure Python, simple to audit); `tiktoken` with
+  `cl100k_base` for chunk sizing, so token counts are exact for that tokenizer, with the vocabulary baked
+  into the image at build time so the worker needs no network at runtime (decided in step 3).
+
+**Consequences:** The worker can only run on Linux (fork, POSIX signals); on Windows the queue is tested
+but a real worker run is exercised in a Linux container and in CI. Each job pays connection setup. RQ
+retry/timeout semantics and the document state machine are specified in the processing step. A job that
+is lost, duplicated or never enqueued is repaired from MongoDB by the reconciliation step.
+

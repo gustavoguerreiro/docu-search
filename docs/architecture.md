@@ -88,6 +88,14 @@ ADR-0014); ownership is part of every document/chunk query. The text index used 
 Milestone 6. Indexes are created idempotently at startup; if
 MongoDB is unavailable then, the process still starts and the `indexes` readiness check retries.
 
+## 4b2. Queue and worker
+
+The API enqueues through the `JobQueue` protocol (`src/docusearch/jobs/`); the RQ implementation puts a job
+carrying only the document id on the `documents` queue in Redis. The worker (`python -m docusearch.worker`)
+is a separate process from the same image: RQ forks a child per job, the child builds its own MongoDB
+client and runs the async domain code with `asyncio.run` (ADR-0024). MongoDB, not the queue, is the source
+of truth for document state, so a lost or duplicated job can always be reconciled from the database.
+
 ## 4c. Storage
 
 Uploaded files go through the `Storage` protocol (`src/docusearch/storage/`): `put`, `delete`, `healthy`.

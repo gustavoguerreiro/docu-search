@@ -12,7 +12,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ done (verified)
 | 2 | MongoDB infrastructure and persistence | ✅ |
 | 3 | Authentication and authorization | ✅ |
 | 4 | Document upload and storage | ✅ |
-| 5 | Asynchronous ingestion pipeline | ⬜ |
+| 5 | Asynchronous ingestion pipeline | 🟨 |
 | 6 | Text search | ⬜ |
 | 7 | Production-minded API hardening | ⬜ |
 | 8 | Observability (Prometheus + Grafana) | ⬜ |
@@ -128,12 +128,36 @@ container recreation with the documented volume. Not done here, by design: proce
 `/content` and `/retry` endpoints, rate limiting (Milestone 7), reconciliation of orphaned files
 (Milestone 5), and an S3 adapter (Milestone 11).
 
-## Milestones 5–12
+## Milestone 5 — Asynchronous ingestion pipeline 🟨
+
+Decisions made by the author: `pypdf` for PDF and `python-docx` for DOCX; chunking with a real tokenizer
+(`tiktoken`, `cl100k_base`, exact counts for that tokenizer). Delegated to the assistant and recorded in
+ADR-0024: the worker uses the async data layer through `asyncio.run` per job.
+
+Sub-steps (one session each):
+
+1. ✅ Queue and worker foundation: Redis settings and client, `JobQueue` boundary + RQ implementation,
+   `redis` readiness check, `python -m docusearch.worker` (same image, own healthcheck), `worker` Compose
+   service, `redis-test` for integration tests. The job is a placeholder. ADR-0024. Verified on Linux
+   (real worker process, clean SIGTERM) and in the Compose stack.
+2. ⬜ Extraction: `pypdf` (text and page numbers), `python-docx`, UTF-8 text; normalization; limits
+   against hostile input (pages, extracted size); pure functions.
+3. ⬜ Chunking with `tiktoken` `cl100k_base`: ~800 tokens, ~100 overlap, both configurable; page
+   numbers carried to chunks; vocabulary baked into the image (no runtime network).
+4. ⬜ Processing job: atomic claim, state transitions (`pending -> processing -> completed | failed`),
+   idempotent chunk writes, transient vs permanent failures, bounded retries, safe error codes; upload
+   enqueues and returns `202` only after enqueueing.
+5. ⬜ Recovery: reconcile documents stuck in `pending`/`processing`, enqueue failures, orphaned files.
+6. ⬜ End to end and failure-scenario tests; documentation.
+
+Acceptance: an uploaded file moves through the full lifecycle; processing is independent of the HTTP
+request; failures are observable; retrying is safe; integration tests cover success and failure.
+
+## Milestones 6–12
 
 Scope and acceptance criteria for each are defined in the project instructions provided by the
 author and will be expanded into sub-steps here when the milestone begins. Summary of intent:
 
-- **5** Redis/RQ worker, extraction, chunking, state machine, idempotency, retries, stale-job reconciliation; upload returns 202.
 - **6** Mongo text search scoped to owner and completed documents, pagination, document endpoints.
 - **7** Error schema, correlation IDs, rate limiting, timeouts, graceful shutdown.
 - **8** Metrics, Prometheus config, provisioned Grafana dashboards, alert rules.
